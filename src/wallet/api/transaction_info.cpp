@@ -45,6 +45,7 @@ TransactionInfoImpl::TransactionInfoImpl()
     : m_direction(Direction_Out)
       , m_pending(false)
       , m_failed(false)
+      , m_coinbase(false)
       , m_amount(0)
       , m_fee(0)
       , m_blockheight(0)
@@ -66,7 +67,6 @@ int TransactionInfoImpl::direction() const
     return m_direction;
 }
 
-
 bool TransactionInfoImpl::isPending() const
 {
     return m_pending;
@@ -75,6 +75,11 @@ bool TransactionInfoImpl::isPending() const
 bool TransactionInfoImpl::isFailed() const
 {
     return m_failed;
+}
+
+bool TransactionInfoImpl::isCoinbase() const
+{
+    return m_coinbase;
 }
 
 uint64_t TransactionInfoImpl::amount() const
@@ -92,6 +97,11 @@ uint64_t TransactionInfoImpl::blockHeight() const
     return m_blockheight;
 }
 
+std::string TransactionInfoImpl::description() const
+{
+    return m_description;
+}
+
 std::set<uint32_t> TransactionInfoImpl::subaddrIndex() const
 {
     return m_subaddrIndex;
@@ -106,7 +116,6 @@ string TransactionInfoImpl::label() const
 {
     return m_label;
 }
-
 
 string TransactionInfoImpl::hash() const
 {
@@ -126,6 +135,11 @@ string TransactionInfoImpl::paymentId() const
 const std::vector<TransactionInfo::Transfer> &TransactionInfoImpl::transfers() const
 {
     return m_transfers;
+}
+
+const std::vector<std::pair<std::string, std::vector<uint64_t>>> &TransactionInfoImpl::rings() const
+{
+    return m_rings;
 }
 
 uint64_t TransactionInfoImpl::confirmations() const
