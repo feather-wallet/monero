@@ -67,7 +67,6 @@ int TransactionInfoImpl::direction() const
     return m_direction;
 }
 
-
 bool TransactionInfoImpl::isPending() const
 {
     return m_pending;
@@ -118,7 +117,6 @@ string TransactionInfoImpl::label() const
     return m_label;
 }
 
-
 string TransactionInfoImpl::hash() const
 {
     return m_hash;
@@ -137,6 +135,11 @@ string TransactionInfoImpl::paymentId() const
 const std::vector<TransactionInfo::Transfer> &TransactionInfoImpl::transfers() const
 {
     return m_transfers;
+}
+
+const std::vector<std::pair<std::string, std::vector<uint64_t>>> &TransactionInfoImpl::rings() const
+{
+    return m_rings;
 }
 
 uint64_t TransactionInfoImpl::confirmations() const
