@@ -92,6 +92,18 @@ std::vector<TransactionInfo *> TransactionHistoryImpl::getAll() const
     return m_history;
 }
 
+void TransactionHistoryImpl::setTxNote(const std::string &txid, const std::string &note)
+{
+    crypto::hash tx_hash;
+    if(!epee::string_tools::hex_to_pod(txid, tx_hash)) {
+        LOG_ERROR("setTxNote not good");
+        return;
+    }
+
+    m_wallet->m_wallet->set_tx_note(tx_hash, note);
+    refresh();
+}
+
 void TransactionHistoryImpl::refresh()
 {
     // multithreaded access:
@@ -126,10 +138,12 @@ void TransactionHistoryImpl::refresh()
             payment_id = payment_id.substr(0,16);
         TransactionInfoImpl * ti = new TransactionInfoImpl();
         ti->m_paymentid = payment_id;
+        ti->m_coinbase = pd.m_coinbase;
         ti->m_amount    = pd.m_amount;
         ti->m_direction = TransactionInfo::Direction_In;
         ti->m_hash      = string_tools::pod_to_hex(pd.m_tx_hash);
         ti->m_blockheight = pd.m_block_height;
+        ti->m_description = m_wallet->m_wallet->get_tx_note(pd.m_tx_hash);
         ti->m_subaddrIndex = { pd.m_subaddr_index.minor };
         ti->m_subaddrAccount = pd.m_subaddr_index.major;
         ti->m_label     = m_wallet->m_wallet->get_subaddress_label(pd.m_subaddr_index);
@@ -173,6 +187,7 @@ void TransactionHistoryImpl::refresh()
         ti->m_direction = TransactionInfo::Direction_Out;
         ti->m_hash = string_tools::pod_to_hex(hash);
         ti->m_blockheight = pd.m_block_height;
+        ti->m_description = m_wallet->m_wallet->get_tx_note(hash);
         ti->m_subaddrIndex = pd.m_subaddr_indices;
         ti->m_subaddrAccount = pd.m_subaddr_account;
         ti->m_label = pd.m_subaddr_indices.size() == 1 ? m_wallet->m_wallet->get_subaddress_label({pd.m_subaddr_account, *pd.m_subaddr_indices.begin()}) : "";
@@ -182,6 +197,10 @@ void TransactionHistoryImpl::refresh()
         // single output transaction might contain multiple transfers
         for (const auto &d: pd.m_dests) {
             ti->m_transfers.push_back({d.amount, d.address(m_wallet->m_wallet->nettype(), pd.m_payment_id)});
+        }
+
+        for (const auto &r: pd.m_rings) {
+            ti->m_rings.push_back({string_tools::pod_to_hex(r.first), cryptonote::relative_output_offsets_to_absolute(r.second)});
         }
         m_history.push_back(ti);
     }
@@ -207,11 +226,15 @@ void TransactionHistoryImpl::refresh()
         ti->m_failed = is_failed;
         ti->m_pending = true;
         ti->m_hash = string_tools::pod_to_hex(hash);
+        ti->m_description = m_wallet->m_wallet->get_tx_note(hash);
         ti->m_subaddrIndex = pd.m_subaddr_indices;
         ti->m_subaddrAccount = pd.m_subaddr_account;
         ti->m_label = pd.m_subaddr_indices.size() == 1 ? m_wallet->m_wallet->get_subaddress_label({pd.m_subaddr_account, *pd.m_subaddr_indices.begin()}) : "";
         ti->m_timestamp = pd.m_timestamp;
         ti->m_confirmations = 0;
+        for (const auto &r: pd.m_rings) {
+            ti->m_rings.push_back({string_tools::pod_to_hex(r.first), cryptonote::relative_output_offsets_to_absolute(r.second)});
+        }
         m_history.push_back(ti);
     }
     
@@ -230,6 +253,7 @@ void TransactionHistoryImpl::refresh()
         ti->m_direction = TransactionInfo::Direction_In;
         ti->m_hash      = string_tools::pod_to_hex(pd.m_tx_hash);
         ti->m_blockheight = pd.m_block_height;
+        ti->m_description = m_wallet->m_wallet->get_tx_note(pd.m_tx_hash);
         ti->m_pending = true;
         ti->m_subaddrIndex = { pd.m_subaddr_index.minor };
         ti->m_subaddrAccount = pd.m_subaddr_index.major;
