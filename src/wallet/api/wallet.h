@@ -46,6 +46,7 @@ class PendingTransactionImpl;
 class UnsignedTransactionImpl;
 class AddressBookImpl;
 class SubaddressImpl;
+class CoinsImpl;
 class SubaddressAccountImpl;
 struct Wallet2CallbackImpl;
 
@@ -76,6 +77,10 @@ public:
                             const std::string &address_string, 
                             const std::string &viewkey_string,
                             const std::string &spendkey_string = "");
+    bool recoverDeterministicWalletFromSpendKey(const std::string &path,
+                                                const std::string &password,
+                                                const std::string &language,
+                                                const std::string &spendkey_string);
     bool recoverFromDevice(const std::string &path,
                            const std::string &password,
                            const std::string &device_name);
@@ -162,6 +167,10 @@ public:
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {}) override;
+
+    PendingTransaction * createTransactionSingle(const std::string &key_image, const std::string &dst_addr,
+            size_t outputs = 1, PendingTransaction::Priority priority = PendingTransaction::Priority_Low) override;
+
     virtual PendingTransaction * createSweepUnmixableTransaction() override;
     bool submitTransaction(const std::string &fileName) override;
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename) override;
@@ -176,6 +185,7 @@ public:
                                             PendingTransaction::Priority priority) const override;
     virtual TransactionHistory * history() override;
     virtual AddressBook * addressBook() override;
+    virtual Coins * coins() override;
     virtual Subaddress * subaddress() override;
     virtual SubaddressAccount * subaddressAccount() override;
     virtual void setListener(WalletListener * l) override;
@@ -247,6 +257,7 @@ private:
     friend struct Wallet2CallbackImpl;
     friend class AddressBookImpl;
     friend class SubaddressImpl;
+    friend class CoinsImpl;
     friend class SubaddressAccountImpl;
 
     std::unique_ptr<tools::wallet2> m_wallet;
@@ -258,6 +269,7 @@ private:
     std::unique_ptr<Wallet2CallbackImpl> m_wallet2Callback;
     std::unique_ptr<AddressBookImpl>  m_addressBook;
     std::unique_ptr<SubaddressImpl>  m_subaddress;
+    std::unique_ptr<CoinsImpl> m_coins;
     std::unique_ptr<SubaddressAccountImpl>  m_subaddressAccount;
 
     // multi-threaded refresh stuff

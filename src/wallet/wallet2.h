@@ -1008,6 +1008,7 @@ private:
     std::string get_subaddress_as_str(const cryptonote::subaddress_index& index) const;
     std::string get_address_as_str() const { return get_subaddress_as_str({0, 0}); }
     std::string get_integrated_address_as_str(const crypto::hash8& payment_id) const;
+    bool get_subaddress_used(const cryptonote::subaddress_index& index);
     void add_subaddress_account(const std::string& label);
     size_t get_num_subaddress_accounts() const { return m_subaddress_labels.size(); }
     size_t get_num_subaddresses(uint32_t index_major) const { return index_major < m_subaddress_labels.size() ? m_subaddress_labels[index_major].size() : 0; }
@@ -1678,6 +1679,7 @@ private:
 
     static std::string get_default_daemon_address() { CRITICAL_REGION_LOCAL(default_daemon_address_lock); return default_daemon_address; }
 
+      boost::shared_mutex m_transfers_mutex;
   private:
     /*!
      * \brief  Stores wallet information to wallet file.
