@@ -66,6 +66,47 @@ enum NetworkType : uint8_t {
         bool set;
     };
 
+/*
+ * @brief Transaction construction data
+ */
+struct TransactionConstructionInfo
+{
+    struct Input {
+        Input(uint64_t _amount, const std::string &_pubkey);
+        const uint64_t amount;
+        const std::string pubkey;
+    };
+
+    struct Output {
+        Output(uint64_t _amount, const std::string &_address);
+        const uint64_t amount;
+        const std::string address;
+    };
+
+    virtual ~TransactionConstructionInfo() = 0;
+    virtual uint64_t unlockTime() const = 0;
+    virtual std::set<std::uint32_t> subaddressIndices() const = 0;
+    virtual std::vector<std::string> subaddresses() const = 0;
+    virtual uint64_t minMixinCount() const = 0;
+    virtual std::vector<Input> inputs() const = 0;
+    virtual std::vector<Output> outputs() const = 0;
+};
+
+
+/*
+* @brief Detailed pending transaction information
+*/
+struct PendingTransactionInfo
+{
+    virtual ~PendingTransactionInfo() = 0;
+    virtual uint64_t fee() const = 0;
+    virtual uint64_t dust() const = 0;
+    virtual bool dustAddedToFee() const = 0;
+    virtual std::string txKey() const = 0;
+    virtual TransactionConstructionInfo * constructionData() const = 0;
+};
+
+
 /**
  * @brief Transaction-like interface for sending money
  */
@@ -101,6 +142,13 @@ struct PendingTransaction
     virtual uint64_t txCount() const = 0;
     virtual std::vector<uint32_t> subaddrAccount() const = 0;
     virtual std::vector<std::set<uint32_t>> subaddrIndices() const = 0;
+    virtual std::string unsignedTxToBin() const = 0;
+    virtual std::string unsignedTxToBase64() const = 0;
+    virtual std::string signedTxToHex(int index) const = 0;
+    virtual size_t signedTxSize(int index) const = 0;
+    virtual PendingTransactionInfo * transaction(int index) const = 0;
+    virtual void refresh() = 0;
+    virtual std::vector<PendingTransactionInfo*> getAll() const = 0;
 
     /**
      * @brief multisigSignData
@@ -160,6 +208,9 @@ struct UnsignedTransaction
     * return - true on success
     */
     virtual bool sign(const std::string &signedFileName) = 0;
+    virtual void refresh() = 0;
+    virtual std::vector<TransactionConstructionInfo*> getAll() const = 0;
+    virtual TransactionConstructionInfo * transaction(int index) const = 0;
 };
 
 /**
@@ -935,13 +986,32 @@ struct Wallet
     *                          after object returned
     */
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename) = 0;
-    
+
+   /*!
+    * \brief loadUnsignedTx  - creates transaction from unsigned tx string
+    * \return                - UnsignedTransaction object. caller is responsible to check UnsignedTransaction::status()
+    *                          after object returned
+    */
+    virtual UnsignedTransaction * loadUnsignedTxFromStr(const std::string &unsigned_tx) = 0;
+
+   /*!
+    * \brief loadUnsignedTx  - creates transaction from unsigned base64 encoded tx string
+    * \return                - UnsignedTransaction object. caller is responsible to check UnsignedTransaction::status()
+    *                          after object returned
+    */
+    virtual UnsignedTransaction * loadUnsignedTxFromBase64Str(const std::string &unsigned_tx_base64) = 0;
+
+   /*!
+    * \brief loadSignedTx    - creates transaction from signed tx file
+    * \return                - PendingTransaction object.
+    */
+    virtual PendingTransaction * loadSignedTx(const std::string &signed_filename) = 0;
+
    /*!
     * \brief submitTransaction - submits transaction in signed tx file
     * \return                  - true on success
     */
     virtual bool submitTransaction(const std::string &fileName) = 0;
-    
 
     /*!
      * \brief disposeTransaction - destroys transaction object
