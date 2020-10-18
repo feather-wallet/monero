@@ -55,6 +55,9 @@ public:
     bool sign(const std::string &signedFileName) override;
     std::string confirmationMessage() const override {return m_confirmationMessage;}
     uint64_t minMixinCount() const override;
+    void refresh() override;
+    std::vector<TransactionConstructionInfo*> getAll() const override;
+    TransactionConstructionInfo * transaction(int index) const override;
 
 private:
     // Callback function to check all loaded tx's and generate confirmationMessage
@@ -67,6 +70,7 @@ private:
     std::string m_errorString;
     tools::wallet2::unsigned_tx_set m_unsigned_tx_set;
     std::string m_confirmationMessage;
+    std::vector<TransactionConstructionInfo*> m_constructionInfo;
 };
 
 
