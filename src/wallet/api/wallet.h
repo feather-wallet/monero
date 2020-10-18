@@ -48,6 +48,8 @@ class AddressBookImpl;
 class SubaddressImpl;
 class CoinsImpl;
 class SubaddressAccountImpl;
+class PendingTransactionInfoImpl;
+class TransactionConstructionInfoImpl;
 struct Wallet2CallbackImpl;
 
 class WalletImpl : public Wallet
@@ -174,6 +176,9 @@ public:
     virtual PendingTransaction * createSweepUnmixableTransaction() override;
     bool submitTransaction(const std::string &fileName) override;
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename) override;
+    virtual UnsignedTransaction * loadUnsignedTxFromStr(const std::string &unsigned_tx) override;
+    virtual UnsignedTransaction * loadUnsignedTxFromBase64Str(const std::string &unsigned_tx) override;
+    virtual PendingTransaction * loadSignedTx(const std::string &signed_filename) override;
     bool exportKeyImages(const std::string &filename, bool all = false) override;
     bool importKeyImages(const std::string &filename) override;
     bool exportOutputs(const std::string &filename, bool all = false) override;
@@ -258,6 +263,8 @@ private:
     friend class SubaddressImpl;
     friend class CoinsImpl;
     friend class SubaddressAccountImpl;
+    friend class PendingTransactionInfoImpl;
+    friend class TransactionConstructionInfoImpl;
 
     std::unique_ptr<tools::wallet2> m_wallet;
     mutable boost::mutex m_statusMutex;

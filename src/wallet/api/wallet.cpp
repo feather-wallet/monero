@@ -39,6 +39,7 @@
 #include "subaddress_account.h"
 #include "common_defines.h"
 #include "common/util.h"
+#include "string_coding.h"
 
 #include "mnemonics/electrum-words.h"
 #include "mnemonics/english.h"
@@ -1172,6 +1173,48 @@ UnsignedTransaction *WalletImpl::loadUnsignedTx(const std::string &unsigned_file
   setStatus(transaction->status(), transaction->errorString());
     
   return transaction;
+}
+
+UnsignedTransaction *WalletImpl::loadUnsignedTxFromStr(const std::string &unsigned_tx) {
+    clearStatus();
+
+    UnsignedTransactionImpl * transaction = new UnsignedTransactionImpl(*this);
+    if (!m_wallet->parse_unsigned_tx_from_str(unsigned_tx, transaction->m_unsigned_tx_set)) {
+        setStatusError(tr("Failed to load unsigned transactions"));
+        transaction->m_status = UnsignedTransaction::Status::Status_Error;
+        transaction->m_errorString = errorString();
+
+        return transaction;
+    }
+
+    // Check tx data and construct confirmation message
+    std::string extra_message;
+    if (!transaction->m_unsigned_tx_set.transfers.second.empty())
+        extra_message = (boost::format("%u outputs to import. ") % (unsigned)transaction->m_unsigned_tx_set.transfers.second.size()).str();
+    transaction->checkLoadedTx([&transaction](){return transaction->m_unsigned_tx_set.txes.size();}, [&transaction](size_t n)->const tools::wallet2::tx_construction_data&{return transaction->m_unsigned_tx_set.txes[n];}, extra_message);
+    setStatus(transaction->status(), transaction->errorString());
+
+    return transaction;
+}
+
+UnsignedTransaction *WalletImpl::loadUnsignedTxFromBase64Str(const std::string &unsigned_tx_base64) {
+    clearStatus();
+
+    std::string decoded_tx = epee::string_encoding::base64_decode(unsigned_tx_base64);
+
+    return this->loadUnsignedTxFromStr(decoded_tx);
+}
+
+PendingTransaction *WalletImpl::loadSignedTx(const std::string &signed_filename) {
+    clearStatus();
+    PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
+
+    if (!m_wallet->load_tx(signed_filename, transaction->m_pending_tx)) {
+        setStatusError(tr("Failed to load unsigned transactions"));
+        return transaction;
+    }
+
+    return transaction;
 }
 
 bool WalletImpl::submitTransaction(const string &fileName) {
