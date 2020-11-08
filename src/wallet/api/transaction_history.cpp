@@ -232,6 +232,11 @@ void TransactionHistoryImpl::refresh()
         ti->m_label = pd.m_subaddr_indices.size() == 1 ? m_wallet->m_wallet->get_subaddress_label({pd.m_subaddr_account, *pd.m_subaddr_indices.begin()}) : "";
         ti->m_timestamp = pd.m_timestamp;
         ti->m_confirmations = 0;
+
+        for (const auto &d: pd.m_dests) {
+            ti->m_transfers.push_back({d.amount, d.address(m_wallet->m_wallet->nettype(), pd.m_payment_id)});
+        }
+
         for (const auto &r: pd.m_rings) {
             ti->m_rings.push_back({string_tools::pod_to_hex(r.first), cryptonote::relative_output_offsets_to_absolute(r.second)});
         }
