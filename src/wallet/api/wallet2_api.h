@@ -1062,6 +1062,8 @@ struct Wallet
      */
     virtual bool importOutputs(const std::string &filename) = 0;
 
+    virtual bool importTransaction(const std::string &txid, std::vector<uint64_t> &o_indices, uint64_t height, uint8_t block_version, uint64_t ts, bool miner_tx, bool pool, bool double_spend_seen) = 0;
+
     virtual TransactionHistory * history() = 0;
     virtual AddressBook * addressBook() = 0;
     virtual Coins * coins() = 0;
