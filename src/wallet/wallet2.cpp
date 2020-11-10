@@ -2189,6 +2189,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
                 update_multisig_rescan_info(*m_multisig_rescan_k, *m_multisig_rescan_info, m_transfers.size() - 1);
             }
 	    LOG_PRINT_L0("Received money: " << print_money(td.amount()) << ", with tx: " << txid);
+              lock.unlock();
 	    if (0 != m_callback)
 	      m_callback->on_money_received(height, txid, tx, td.m_amount, td.m_subaddr_index, spends_one_of_ours(tx), td.m_tx.unlock_time);
           }
@@ -3168,6 +3169,53 @@ void wallet2::update_pool_state(std::vector<std::tuple<cryptonote::transaction, 
     }
   }
   MTRACE("update_pool_state end");
+}
+//----------------------------------------------------------------------------------------------------
+void wallet2::import_tx(const std::string &txid, std::vector<uint64_t> &o_indices, uint64_t height, uint8_t block_version, uint64_t ts, bool miner_tx, bool pool, bool double_spend_seen)
+{
+    crypto::hash hash;
+    epee::string_tools::hex_to_pod(txid, hash);
+
+    cryptonote::COMMAND_RPC_GET_TRANSACTIONS::request req;
+    cryptonote::COMMAND_RPC_GET_TRANSACTIONS::response res;
+    req.txs_hashes.push_back(epee::string_tools::pod_to_hex(hash));
+
+    req.decode_as_json = false;
+    req.prune = true;
+
+    bool r;
+    {
+        const boost::lock_guard<boost::recursive_mutex> lock{m_daemon_rpc_mutex};
+        uint64_t pre_call_credits = m_rpc_payment_state.credits;
+        req.client = get_client_signature();
+        r = epee::net_utils::invoke_http_json("/gettransactions", req, res, *m_http_client, rpc_timeout);
+        if (r && res.status == CORE_RPC_STATUS_OK)
+            check_rpc_cost("/gettransactions", res.credits, pre_call_credits, res.txs.size() * COST_PER_TX);
+    }
+
+    MDEBUG("Got " << r << " and " << res.status);
+    if (!(r && res.status == CORE_RPC_STATUS_OK)) {
+        THROW_WALLET_EXCEPTION(error::wallet_internal_error, "Error calling gettransactions daemon RPC: r " + std::to_string(r) + ", status " + get_rpc_status(res.status));
+    }
+
+    if (res.txs.size() != 1) {
+        THROW_WALLET_EXCEPTION(error::wallet_internal_error, "Expected 1 tx, got " + std::to_string(res.txs.size()));
+    }
+
+    const auto &tx_entry = res.txs[0];
+    cryptonote::transaction tx;
+    cryptonote::blobdata bd;
+    crypto::hash tx_hash;
+
+    if (!get_pruned_tx(tx_entry, tx, tx_hash)) {
+        THROW_WALLET_EXCEPTION(error::wallet_internal_error, "Failed to parse transaction from daemon");
+    }
+
+    if (tx_hash != hash) {
+        THROW_WALLET_EXCEPTION(error::wallet_internal_error, "Got txid " + epee::string_tools::pod_to_hex(tx_hash) + " which we did not ask for");
+    }
+
+    process_new_transaction(tx_hash, tx, o_indices, height, block_version, ts, miner_tx, pool, double_spend_seen, {});
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::process_pool_state(const std::vector<std::tuple<cryptonote::transaction, crypto::hash, bool>> &txs)
