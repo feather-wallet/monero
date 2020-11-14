@@ -862,6 +862,11 @@ bool WalletImpl::setPassword(const std::string &password)
     return status() == Status_Ok;
 }
 
+std::string WalletImpl::getPassword() const
+{
+    return m_password;
+}
+
 bool WalletImpl::setDevicePin(const std::string &pin)
 {
     clearStatus();
