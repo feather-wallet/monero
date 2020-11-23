@@ -479,7 +479,7 @@ struct WalletListener
     /**
      * @brief refreshed - called when wallet refreshed by background thread or explicitly refreshed by calling "refresh" synchronously
      */
-    virtual void refreshed() = 0;
+    virtual void refreshed(bool success) = 0;
 
     /**
      * @brief called by device if the action is required
