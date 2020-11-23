@@ -479,7 +479,7 @@ struct WalletListener
     /**
      * @brief refreshed - called when wallet refreshed by background thread or explicitly refreshed by calling "refresh" synchronously
      */
-    virtual void refreshed() = 0;
+    virtual void refreshed(bool success) = 0;
 
     /**
      * @brief called by device if the action is required
@@ -1218,6 +1218,12 @@ struct Wallet
 
     //! shows address on device display
     virtual void deviceShowAddress(uint32_t accountIndex, uint32_t addressIndex, const std::string &paymentId) = 0;
+
+    //! get bytes received
+    virtual uint64_t getBytesReceived() = 0;
+
+    //! get bytes sent
+    virtual uint64_t getBytesSent() = 0;
 };
 
 /**
