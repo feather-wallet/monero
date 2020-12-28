@@ -32,7 +32,7 @@ set(cryptonote_core_sources
   tx_pool.cpp
   tx_sanity_check.cpp
   cryptonote_tx_utils.cpp
-  tx_verification_utils.cpp
+#  tx_verification_utils.cpp
 )
 
 set(cryptonote_core_headers)
@@ -50,7 +50,6 @@ target_link_libraries(cryptonote_core
     version
     common
     cncrypto
-    blockchain_db
     ringct
     device
     hardforks
