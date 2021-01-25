@@ -1063,6 +1063,24 @@ struct Wallet
      */
     virtual bool scanTransactions(const std::vector<std::string> &txids) = 0;
 
+    virtual std::string printBlockchain() = 0;
+    virtual std::string printTransfers() = 0;
+    virtual std::string printPayments() = 0;
+    virtual std::string printUnconfirmedPayments() = 0;
+    virtual std::string printConfirmedTransferDetails() = 0;
+    virtual std::string printUnconfirmedTransferDetails() = 0;
+    virtual std::string printPubKeys() = 0;
+    virtual std::string printTxNotes() = 0;
+    virtual std::string printSubaddresses() = 0;
+    virtual std::string printSubaddressLabels() = 0;
+    virtual std::string printAdditionalTxKeys() = 0;
+    virtual std::string printAttributes() = 0;
+    virtual std::string printKeyImages() = 0;
+    virtual std::string printAccountTags() = 0;
+    virtual std::string printTxKeys() = 0;
+    virtual std::string printAddressBook() = 0;
+    virtual std::string printScannedPoolTxs() = 0;
+
     virtual TransactionHistory * history() = 0;
     virtual AddressBook * addressBook() = 0;
     virtual Coins * coins() = 0;
