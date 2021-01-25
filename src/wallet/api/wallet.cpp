@@ -1378,6 +1378,75 @@ bool WalletImpl::scanTransactions(const std::vector<std::string> &txids)
     return true;
 }
 
+std::string WalletImpl::printBlockchain()
+{
+    return m_wallet->printBlockchain();
+}
+std::string WalletImpl::printTransfers()
+{
+    return m_wallet->printTransfers();
+}
+std::string WalletImpl::printPayments()
+{
+    return m_wallet->printPayments();
+}
+std::string WalletImpl::printUnconfirmedPayments()
+{
+    return m_wallet->printUnconfirmedPayments();
+}
+std::string WalletImpl::printConfirmedTransferDetails()
+{
+    return m_wallet->printConfirmedTransferDetails();
+}
+std::string WalletImpl::printUnconfirmedTransferDetails()
+{
+    return m_wallet->printUnconfirmedTransferDetails();
+}
+std::string WalletImpl::printPubKeys()
+{
+    return m_wallet->printPubKeys();
+}
+std::string WalletImpl::printTxNotes()
+{
+    return m_wallet->printTxNotes();
+}
+std::string WalletImpl::printSubaddresses()
+{
+    return m_wallet->printSubaddresses();
+}
+std::string WalletImpl::printSubaddressLabels()
+{
+    return m_wallet->printSubaddressLabels();
+}
+std::string WalletImpl::printAdditionalTxKeys()
+{
+    return m_wallet->printAdditionalTxKeys();
+}
+std::string WalletImpl::printAttributes()
+{
+    return m_wallet->printAttributes();
+}
+std::string WalletImpl::printKeyImages()
+{
+    return m_wallet->printKeyImages();
+}
+std::string WalletImpl::printAccountTags()
+{
+    return m_wallet->printAccountTags();
+}
+std::string WalletImpl::printTxKeys()
+{
+    return m_wallet->printTxKeys();
+}
+std::string WalletImpl::printAddressBook()
+{
+    return m_wallet->printAddressBook();
+}
+std::string WalletImpl::printScannedPoolTxs()
+{
+    return m_wallet->printScannedPoolTxs();
+}
+
 void WalletImpl::addSubaddressAccount(const std::string& label)
 {
     m_wallet->add_subaddress_account(label);
