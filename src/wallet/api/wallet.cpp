@@ -888,6 +888,27 @@ std::string WalletImpl::address(uint32_t accountIndex, uint32_t addressIndex) co
     return m_wallet->get_subaddress_as_str({accountIndex, addressIndex});
 }
 
+bool WalletImpl::subaddressIndex(std::string address, std::pair<uint32_t, uint32_t> &index) const
+{
+    clearStatus();
+    cryptonote::address_parse_info info;
+
+    if (!cryptonote::get_account_address_from_str(info, m_wallet->nettype(), address)) {
+        setStatusError(tr("Failed to parse address"));
+        return false;
+    }
+
+    auto i = m_wallet->get_subaddress_index(info.address);
+    if (!i) {
+        setStatusError(tr("Address doesn't belong to the wallet"));
+        return false;
+    }
+
+    index.first = i->major;
+    index.second = i->minor;
+    return true;
+}
+
 std::string WalletImpl::integratedAddress(const std::string &payment_id) const
 {
     crypto::hash8 pid;
