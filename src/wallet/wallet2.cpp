@@ -5594,6 +5594,296 @@ void wallet2::write_watch_only_wallet(const std::string& wallet_name, const epee
   THROW_WALLET_EXCEPTION_IF(!r, error::file_save_error, new_keys_filename);
 }
 //----------------------------------------------------------------------------------------------------
+std::string wallet2::printBlockchain()
+{
+  std::string blstr;
+  blstr += "offset: " + std::to_string(m_blockchain.offset()) + "\n";
+  blstr += "genesis: " + string_tools::pod_to_hex(m_blockchain.genesis()) + "\n";
+
+  for (size_t i = m_blockchain.offset(); i < m_blockchain.size(); i++) {
+      blstr += std::to_string(i) + " : " + string_tools::pod_to_hex(m_blockchain[i]) + "\n";
+  }
+
+  return blstr;
+}
+std::string wallet2::printTransfers()
+{
+    std::string str;
+    for (const auto &td : m_transfers) {
+        str += "block_height: " + std::to_string(td.m_block_height) + "\n";
+        str += printTxPrefix(td.m_tx);
+        str += "txid: " + string_tools::pod_to_hex(td.m_txid) + "\n";
+        str += "internal_output_index: " + std::to_string(td.m_internal_output_index) + "\n";
+        str += "global_output_index: " + std::to_string(td.m_global_output_index) + "\n";
+        str += "spent: " + std::to_string(td.m_spent) + "\n";
+        str += "frozen: " + std::to_string(td.m_frozen) + "\n";
+        str += "spent_height: " + std::to_string(td.m_spent_height) + "\n";
+        str += "key_image: " + string_tools::pod_to_hex(td.m_key_image) + "\n";
+        str += "mask: " + string_tools::pod_to_hex(td.m_mask) + "\n";
+        str += "amount: " + std::to_string(td.m_amount) + "\n";
+        str += "rct: " + std::to_string(td.m_rct) + "\n";
+        str += "key_image_known: " + std::to_string(td.m_key_image_known) + "\n";
+        str += "key_image_request: " + std::to_string(td.m_key_image_request) + "\n";
+        str += "pk_index: " + std::to_string(td.m_pk_index) + "\n";
+        str += "subaddr_index: " + std::to_string(td.m_subaddr_index.major) + "," + std::to_string(td.m_subaddr_index.minor) + "\n";
+        str += "key_image_partial: " + std::to_string(td.m_key_image_partial) + "\n";
+        str += "multisig_k:\n";
+        for (const auto &el : td.m_multisig_k) {
+            str += "  " + string_tools::pod_to_hex(el) + "\n";
+        }
+        str += "multisig_info:\n";
+        for (const auto &el : td.m_multisig_info) {
+            str += "  signer: " + string_tools::pod_to_hex(el.m_signer) + "\n";
+            str += "  LR:\n";
+            for (const auto &em : el.m_LR) {
+                str += "    L: " + string_tools::pod_to_hex(em.m_L) + "\n";
+                str += "    R: " + string_tools::pod_to_hex(em.m_R) + "\n";
+            }
+            str += "\n";
+            str += "  partial_key_images:\n";
+            for (const auto &em : el.m_partial_key_images) {
+                str += "    "  + string_tools::pod_to_hex(em) + "\n";
+            }
+            str += "\n";
+        }
+        str += "uses:\n";
+        for (const auto &el : td.m_uses) {
+            str += "  " + std::to_string(el.first) + " : " + string_tools::pod_to_hex(el.second) + "\n";
+        }
+        str += "\n";
+    }
+    return str;
+}
+std::string wallet2::printUnconfirmedPayments()
+{
+    std::string str;
+    for (const auto &el : m_unconfirmed_payments) {
+        auto ppd = el.second;
+        str += "double_spend_seen: " + std::to_string(ppd.m_double_spend_seen) + "\n";
+        str += printPaymentDetails(ppd.m_pd);
+        str += "\n";
+    }
+    return str;
+}
+std::string wallet2::printConfirmedTransferDetails()
+{
+    std::string str;
+    for (const auto &el : m_confirmed_txs) {
+        auto ctd = el.second;
+        str += "amount_in: " + std::to_string(ctd.m_amount_in) + "\n";
+        str += "amount_out: " + std::to_string(ctd.m_amount_out) + "\n";
+        str += "change: " + std::to_string(ctd.m_change) + "\n";
+        str += "block_height: " + std::to_string(ctd.m_block_height) + "\n";
+        str += "dests:\n";
+        for (const auto &em : ctd.m_dests) {
+            str += printTxDestinationEntry(em);
+        }
+        str += "payment_id: " + string_tools::pod_to_hex(ctd.m_payment_id) + "\n";
+        str += "timestamp: " + std::to_string(ctd.m_timestamp) + "\n";
+        str += "unlock_time: " + std::to_string(ctd.m_unlock_time) + "\n";
+        str += "subaddr_account: " + std::to_string(ctd.m_subaddr_account) + "\n";
+        str += "subaddr_indices: ";
+        for (auto em : ctd.m_subaddr_indices) {
+            str += std::to_string(em);
+        }
+        str += "\n\n";
+    }
+    return str;
+}
+std::string wallet2::printUnconfirmedTransferDetails()
+{
+    std::string str;
+    for (const auto &el : m_unconfirmed_txs) {
+        auto utd = el.second;
+        str += printTxPrefix(utd.m_tx);
+        str += "amount_in: " + std::to_string(utd.m_amount_in) + "\n";
+        str += "amount_out: " + std::to_string(utd.m_amount_out) + "\n";
+        str += "change: " + std::to_string(utd.m_change) + "\n";
+        str += "sent_time: " + std::to_string(utd.m_sent_time) + "\n";
+        str += "dests:\n";
+        for (const auto &em : utd.m_dests) {
+            str += printTxDestinationEntry(em);
+        }
+        str += "payment_id: " + string_tools::pod_to_hex(utd.m_payment_id) + "\n";
+        str += "timestamp: " + std::to_string(utd.m_timestamp) + "\n";
+        str += "subaddr_account: " + std::to_string(utd.m_subaddr_account) + "\n";
+        str += "subaddr_indices: ";
+        for (auto em : utd.m_subaddr_indices) {
+            str += std::to_string(em);
+        }
+        str += "\n\n";
+    }
+    return str;
+}
+std::string wallet2::printPayments()
+{
+    std::string str;
+    for (const auto &el : m_payments) {
+        str += printPaymentDetails(el.second) + "\n";
+    }
+    return str;
+}
+std::string wallet2::printPubKeys()
+{
+  std::string str;
+  vector<std::pair<crypto::public_key, size_t>> v;
+  for (const auto &el : m_pub_keys) {
+      v.push_back(el);
+  }
+  std::sort(v.begin(), v.end(),
+            [](std::pair<crypto::public_key, size_t> a, std::pair<crypto::public_key, size_t> b){return a.second < b.second;});
+  for (const auto &el : v){
+      str += string_tools::pod_to_hex(el.first) + " : " + boost::to_string(el.second) + "\n";
+  }
+  return str;
+}
+std::string wallet2::printTxNotes()
+{
+    std::string str;
+    for (std::pair<crypto::hash, std::string> el : m_tx_notes) {
+        str += string_tools::pod_to_hex(el.first) + " : " + el.second + "\n";
+    }
+    return str;
+}
+std::string wallet2::printSubaddresses()
+{
+    std::string str;
+    vector<std::pair<crypto::public_key, cryptonote::subaddress_index>> v;
+    for (const auto &el : m_subaddresses) {
+        v.push_back(el);
+    }
+    std::sort(v.begin(), v.end(),
+              [](std::pair<crypto::public_key, cryptonote::subaddress_index> a, std::pair<crypto::public_key, cryptonote::subaddress_index> b){
+        if (a.second.major == b.second.major) {
+            return a.second.minor < b.second.minor;
+        }
+        return a.second.major < b.second.major;
+    });
+    for (const auto &el : v) {
+        str += string_tools::pod_to_hex(el.first) + " : " + std::to_string(el.second.major) + "," + std::to_string(el.second.minor) + "\n";
+    }
+    return str;
+}
+std::string wallet2::printSubaddressLabels()
+{
+    std::string str;
+    for (size_t i = 0; i < m_subaddress_labels.size(); i++) {
+        for (size_t j = 0; j < m_subaddress_labels[i].size(); j++) {
+            str += std::to_string(i) + "," + std::to_string(j) + " : " + m_subaddress_labels[i][j] + "\n";
+        }
+    }
+    return str;
+}
+std::string wallet2::printAdditionalTxKeys()
+{
+    std::string str;
+    for (std::pair<crypto::hash, std::vector<crypto::secret_key>> el : m_additional_tx_keys) {
+        str += "Txid: " + string_tools::pod_to_hex(el.first) + " (" + std::to_string(el.second.size()) + ")\n";
+        for (auto em : el.second) {
+            str += "  " + string_tools::pod_to_hex(em) + "\n";
+        }
+    }
+    return str;
+}
+std::string wallet2::printAttributes()
+{
+    std::string str;
+    for (auto el : m_attributes) {
+        str += el.first + " : " + el.second + "\n";
+    }
+    return str;
+}
+std::string wallet2::printKeyImages()
+{
+    std::string str;
+    vector<std::pair<crypto::key_image, size_t>> v;
+    for (const auto &el : m_key_images) {
+        v.push_back(el);
+    }
+    std::sort(v.begin(), v.end(),
+      [](std::pair<crypto::key_image, size_t> a, std::pair<crypto::key_image, size_t> b){return a.second < b.second;});
+    for (const auto &el: v) {
+        str += string_tools::pod_to_hex(el.first) + " : " + boost::to_string(el.second) + "\n";
+    }
+    return str;
+}
+std::string wallet2::printAccountTags()
+{
+    std::string str;
+    for (size_t i = 0; i < m_account_tags.second.size(); i++) {
+        str += std::to_string(i) + " : " + m_account_tags.second[i] + "\n";
+    }
+    return str;
+}
+std::string wallet2::printTxKeys()
+{
+    std::string str;
+    for (std::pair<crypto::hash, crypto::secret_key> el : m_tx_keys) {
+        str += string_tools::pod_to_hex(el.first) + " : " + string_tools::pod_to_hex(el.second) + "\n";
+    }
+    return str;
+}
+std::string wallet2::printAddressBook()
+{
+    std::string str;
+    for (auto el : m_address_book) {
+        str += "address: " + string_tools::pod_to_hex(el.m_address) + "\n";
+        str += "payment_id: " + string_tools::pod_to_hex(el.m_payment_id) + "\n";
+        str += "description: " + el.m_description + "\n";
+        str += "is_subaddress: " + std::to_string(el.m_is_subaddress) + "\n";
+        str += "has_payment_id: " + std::to_string(el.m_has_payment_id) + "\n";
+        str += "\n";
+    }
+    return str;
+}
+std::string wallet2::printScannedPoolTxs()
+{
+    std::string str;
+    for (size_t i = 0; i < 2; i++) {
+        str += "scanned_pool_txs[" + std::to_string(i) + "]\n";
+        for (auto el : m_scanned_pool_txs[i]) {
+            str += string_tools::pod_to_hex(el) + "\n";
+        }
+        str += "\n";
+    }
+    return str;
+}
+std::string wallet2::printTxPrefix(const cryptonote::transaction_prefix &tx)
+{
+    std::string str;
+    str += "tx.version: " + std::to_string(tx.version) + "\n";
+    str += "tx.unlock_time: " + std::to_string(tx.unlock_time) + "\n";
+    return str;
+}
+std::string wallet2::printPaymentDetails(const payment_details &pd)
+{
+    std::string str;
+    str += "tx_hash: " + string_tools::pod_to_hex(pd.m_tx_hash) + "\n";
+    str += "amount: " + std::to_string(pd.m_amount) + "\n";
+    str += "amounts: ";
+    for (auto em : pd.m_amounts) {
+        str += std::to_string(em);
+    }
+    str += "\n";
+    str += "fee: " + std::to_string(pd.m_fee) + "\n";
+    str += "block_height: " + std::to_string(pd.m_block_height) + "\n";
+    str += "unlock_time: " + std::to_string(pd.m_unlock_time) + "\n";
+    str += "timestamp: " + std::to_string(pd.m_timestamp) + "\n";
+    str += "coinbase: " + std::to_string(pd.m_coinbase) + "\n";
+    str += "subaddr_index: " + std::to_string(pd.m_subaddr_index.major) + "," + std::to_string(pd.m_subaddr_index.minor) + "\n";
+    return str;
+}
+std::string wallet2::printTxDestinationEntry(const cryptonote::tx_destination_entry &tx)
+{
+    std::string str;
+    str += "  original: " + tx.original + "\n";
+    str += "  amount: " + std::to_string(tx.amount) + "\n";
+    str += "  addr: " + string_tools::pod_to_hex(tx.addr) + "\n";
+    str += "  is_subaddress: " + std::to_string(tx.is_subaddress) + "\n";
+    str += "  is_integrated: " + std::to_string(tx.is_integrated) + "\n";
+    return str;
+}
+//----------------------------------------------------------------------------------------------------
 void wallet2::wallet_exists(const std::string& file_path, bool& keys_file_exists, bool& wallet_file_exists)
 {
   std::string keys_file, wallet_file, mms_file;
