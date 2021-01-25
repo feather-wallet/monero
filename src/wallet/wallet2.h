@@ -1688,6 +1688,27 @@ private:
     uint64_t get_bytes_sent() const;
     uint64_t get_bytes_received() const;
 
+    std::string printBlockchain();
+    std::string printTransfers();
+    std::string printKeyImages();
+    std::string printUnconfirmedTransferDetails();
+    std::string printPayments();
+    std::string printUnconfirmedPayments();
+    std::string printConfirmedTransferDetails();
+    std::string printPubKeys();
+    std::string printTxNotes();
+    std::string printSubaddresses();
+    std::string printSubaddressLabels();
+    std::string printAdditionalTxKeys();
+    std::string printAttributes();
+    std::string printAccountTags();
+    std::string printTxKeys();
+    std::string printAddressBook();
+    std::string printScannedPoolTxs();
+    std::string printTxPrefix(const cryptonote::transaction_prefix &tx);
+    std::string printPaymentDetails(const payment_details &pd);
+    std::string printTxDestinationEntry(const cryptonote::tx_destination_entry &tx);
+
     // MMS -------------------------------------------------------------------------------------------------
     mms::message_store& get_message_store() { return m_message_store; };
     const mms::message_store& get_message_store() const { return m_message_store; };
