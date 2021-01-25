@@ -186,6 +186,24 @@ public:
     bool importOutputs(const std::string &filename) override;
     bool importTransaction(const std::string &txid, std::vector<uint64_t> &o_indices, uint64_t height, uint8_t block_version, uint64_t ts, bool miner_tx, bool pool, bool double_spend_seen) override;
 
+    virtual std::string printBlockchain() override;
+    virtual std::string printTransfers() override;
+    virtual std::string printPayments() override;
+    virtual std::string printUnconfirmedPayments() override;
+    virtual std::string printConfirmedTransferDetails() override;
+    virtual std::string printUnconfirmedTransferDetails() override;
+    virtual std::string printPubKeys() override;
+    virtual std::string printTxNotes() override;
+    virtual std::string printSubaddresses() override;
+    virtual std::string printSubaddressLabels() override;
+    virtual std::string printAdditionalTxKeys() override;
+    virtual std::string printAttributes() override;
+    virtual std::string printKeyImages() override;
+    virtual std::string printAccountTags() override;
+    virtual std::string printTxKeys() override;
+    virtual std::string printAddressBook() override;
+    virtual std::string printScannedPoolTxs() override;
+
     virtual void disposeTransaction(PendingTransaction * t) override;
     virtual uint64_t estimateTransactionFee(const std::vector<std::pair<std::string, uint64_t>> &destinations,
                                             PendingTransaction::Priority priority) const override;
@@ -240,6 +258,7 @@ public:
     virtual void deviceShowAddress(uint32_t accountIndex, uint32_t addressIndex, const std::string &paymentId) override;
     virtual uint64_t getBytesReceived() override;
     virtual uint64_t getBytesSent() override;
+
 
 private:
     void clearStatus() const;
