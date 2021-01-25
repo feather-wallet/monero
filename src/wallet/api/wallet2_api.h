@@ -556,6 +556,7 @@ struct Wallet
     virtual bool setDevicePin(const std::string &pin) { (void)pin; return false; };
     virtual bool setDevicePassphrase(const std::string &passphrase) { (void)passphrase; return false; };
     virtual std::string address(uint32_t accountIndex = 0, uint32_t addressIndex = 0) const = 0;
+    virtual bool subaddressIndex(std::string address, std::pair<uint32_t, uint32_t> &index) const = 0;
     std::string mainAddress() const { return address(0, 0); }
     virtual std::string path() const = 0;
     virtual NetworkType nettype() const = 0;
