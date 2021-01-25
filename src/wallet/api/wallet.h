@@ -100,6 +100,7 @@ public:
     bool setDevicePin(const std::string &password) override;
     bool setDevicePassphrase(const std::string &password) override;
     std::string address(uint32_t accountIndex = 0, uint32_t addressIndex = 0) const override;
+    bool subaddressIndex(std::string address, std::pair<uint32_t, uint32_t> &index) const override;
     std::string integratedAddress(const std::string &payment_id) const override;
     std::string secretViewKey() const override;
     std::string publicViewKey() const override;
