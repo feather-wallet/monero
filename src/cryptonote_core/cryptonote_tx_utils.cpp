@@ -663,12 +663,27 @@ namespace cryptonote
     bl.minor_version = CURRENT_BLOCK_MINOR_VERSION;
     bl.timestamp = 0;
     bl.nonce = nonce;
-    miner::find_nonce_for_given_block([](const cryptonote::block &b, uint64_t height, const crypto::hash *seed_hash, unsigned int threads, crypto::hash &hash){
-      return cryptonote::get_block_longhash(NULL, b, hash, height, seed_hash, threads);
-    }, bl, 1, 0, NULL);
+    difficulty_type diffic = 1;
+    uint64_t height = 0;
+    crypto::hash *seed_hash = NULL;
+
+    for(; bl.nonce != std::numeric_limits<uint32_t>::max(); bl.nonce++) {
+        crypto::hash h;
+        blobdata bd = get_block_hashing_blob(bl);
+        crypto::cn_slow_hash(bd.data(), bd.size(), h, 0, height);
+
+        if(check_hash(h, diffic))
+        {
+            bl.invalidate_hashes();
+            break;
+        }
+    }
+
     bl.invalidate_hashes();
     return true;
   }
+
+#ifndef BUILD_GUI_DEPS
   //---------------------------------------------------------------
   void get_altblock_longhash(const block& b, crypto::hash& res, const uint64_t main_height, const uint64_t height, const uint64_t seed_height, const crypto::hash& seed_hash)
   {
@@ -730,4 +745,5 @@ namespace cryptonote
   {
     rx_reorg(split_height);
   }
+#endif
 }
