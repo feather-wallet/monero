@@ -50,13 +50,22 @@ set(cryptonote_basic_sources
   cryptonote_basic_impl.cpp
   cryptonote_format_utils.cpp
   difficulty.cpp
-  hardfork.cpp
-  merge_mining.cpp
-  miner.cpp)
+  hardfork.cpp)
 
 set(cryptonote_basic_headers)
 
-monero_find_all_headers(cryptonote_basic_private_headers "${CMAKE_CURRENT_SOURCE_DIR}")
+set(cryptonote_basic_private_headers
+  account.h
+  account_boost_serialization.h
+  connection_context.h
+  cryptonote_basic.h
+  cryptonote_basic_impl.h
+  cryptonote_boost_serialization.h
+  cryptonote_format_utils.h
+  difficulty.h
+  hardfork.h
+  tx_extra.h
+  verification_context.h)
 
 monero_private_headers(cryptonote_basic
   ${cryptonote_basic_private_headers})
