@@ -101,6 +101,7 @@ bool wallet2::make_rpc_payment(uint32_t nonce, uint32_t cookie, uint64_t &credit
   return true;
 }
 //----------------------------------------------------------------------------------------------------
+#ifndef BUILD_GUI_DEPS
 bool wallet2::search_for_rpc_payment(uint64_t credits_target, const std::function<bool(uint64_t, uint64_t)> &startfunc, const std::function<bool(unsigned)> &contfunc, const std::function<bool(uint64_t)> &foundfunc, const std::function<void(const std::string&)> &errorfunc)
 {
   bool need_payment = false;
@@ -187,6 +188,7 @@ bool wallet2::search_for_rpc_payment(uint64_t credits_target, const std::functio
   }
   return true;
 }
+#endif
 //----------------------------------------------------------------------------------------------------
 void wallet2::check_rpc_cost(const char *call, uint64_t post_call_credits, uint64_t pre_call_credits, double expected_cost)
 {
