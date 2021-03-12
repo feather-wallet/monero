@@ -73,7 +73,8 @@ public:
                                                            NetworkType nettype,
                                                            uint64_t restoreHeight,
                                                            const std::string &spendkey_string,
-                                                           uint64_t kdf_rounds) override;
+                                                           uint64_t kdf_rounds,
+                                                           const std::string &offset_passphrase) override;
     virtual Wallet * createWalletFromDevice(const std::string &path,
                                             const std::string &password,
                                             NetworkType nettype,
