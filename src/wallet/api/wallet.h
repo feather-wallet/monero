@@ -82,7 +82,8 @@ public:
     bool recoverDeterministicWalletFromSpendKey(const std::string &path,
                                                 const std::string &password,
                                                 const std::string &language,
-                                                const std::string &spendkey_string);
+                                                const std::string &spendkey_string,
+                                                const std::string &offset_passphrase = "");
     bool recoverFromDevice(const std::string &path,
                            const std::string &password,
                            const std::string &device_name);
