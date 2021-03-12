@@ -543,7 +543,7 @@ struct Wallet
     };
 
     virtual ~Wallet() = 0;
-    virtual std::string seed() const = 0;
+    virtual std::string seed(const std::string &seed_offset = "") const = 0;
     virtual std::string getSeedLanguage() const = 0;
     virtual void setSeedLanguage(const std::string &arg) = 0;
     //! returns wallet status (Status_Ok | Status_Error)
@@ -1353,7 +1353,8 @@ struct WalletManager
                                                            NetworkType nettype,
                                                            uint64_t restoreHeight,
                                                            const std::string &spendKeyString,
-                                                           uint64_t kdf_rounds = 1) = 0;
+                                                           uint64_t kdf_rounds = 1,
+                                                           const std::string &offset_passphrase = "") = 0;
 
    /*!
     * \deprecated this method creates a wallet WITHOUT a passphrase, use createWalletFromKeys(..., password, ...) instead

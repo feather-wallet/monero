@@ -752,7 +752,7 @@ bool WalletImpl::recover(const std::string &path, const std::string &password, c
     return status() == Status_Ok;
 }
 
-bool WalletImpl::recoverDeterministicWalletFromSpendKey(const std::string &path, const std::string &password, const std::string &language, const std::string &spendkey_string)
+bool WalletImpl::recoverDeterministicWalletFromSpendKey(const std::string &path, const std::string &password, const std::string &language, const std::string &spendkey_string, const std::string &offset_passphrase)
 {
     clearStatus();
     m_errorString.clear();
@@ -770,6 +770,10 @@ bool WalletImpl::recoverDeterministicWalletFromSpendKey(const std::string &path,
             return false;
         }
         spendkey = *reinterpret_cast<const crypto::secret_key*>(spendkey_data.data());
+    }
+    if (!offset_passphrase.empty())
+    {
+        spendkey = cryptonote::decrypt_key(spendkey, offset_passphrase);
     }
 
     try {
@@ -809,11 +813,11 @@ bool WalletImpl::close(bool store)
     return result;
 }
 
-std::string WalletImpl::seed() const
+std::string WalletImpl::seed(const std::string &seed_offset) const
 {
     epee::wipeable_string seed;
     if (m_wallet)
-        m_wallet->get_seed(seed);
+        m_wallet->get_seed(seed, seed_offset);
     return std::string(seed.data(), seed.size()); // TODO
 }
 
