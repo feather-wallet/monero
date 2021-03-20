@@ -81,7 +81,6 @@ void NodeRPCProxy::invalidate()
   m_rpc_payment_seed_height = 0;
   m_rpc_payment_seed_hash = crypto::null_hash;
   m_rpc_payment_next_seed_hash = crypto::null_hash;
-  m_height_time = 0;
   m_rpc_payment_diff = 0;
   m_rpc_payment_credits_per_hash_found = 0;
   m_rpc_payment_height = 0;
@@ -110,7 +109,6 @@ boost::optional<std::string> NodeRPCProxy::get_rpc_version(uint32_t &rpc_version
 void NodeRPCProxy::set_height(uint64_t h)
 {
   m_height = h;
-  m_height_time = time(NULL);
 }
 
 boost::optional<std::string> NodeRPCProxy::get_info()
@@ -120,6 +118,9 @@ boost::optional<std::string> NodeRPCProxy::get_info()
   const time_t now = time(NULL);
   if (now >= m_get_info_time + 30) // re-cache every 30 seconds
   {
+    // If this function gets called in multiple threads we want to avoid calling get_info more than once every 30 seconds
+    m_get_info_time = now;
+
     cryptonote::COMMAND_RPC_GET_INFO::request req_t = AUTO_VAL_INIT(req_t);
     cryptonote::COMMAND_RPC_GET_INFO::response resp_t = AUTO_VAL_INIT(resp_t);
 
@@ -128,6 +129,11 @@ boost::optional<std::string> NodeRPCProxy::get_info()
       uint64_t pre_call_credits = m_rpc_payment_state.credits;
       req_t.client = cryptonote::make_rpc_payment_signature(m_client_id_secret_key);
       bool r = net_utils::invoke_http_json_rpc("/json_rpc", "get_info", req_t, resp_t, m_http_client, rpc_timeout);
+      if (!r) {
+          m_get_info_time = 0; // Allow get_info to be called again before 30s cache
+          m_height = 0;
+          m_target_height = 0;
+      }
       RETURN_ON_RPC_RESPONSE_ERROR(r, epee::json_rpc::error{}, resp_t, "get_info");
       check_rpc_cost(m_rpc_payment_state, "get_info", resp_t.credits, pre_call_credits, COST_PER_GET_INFO);
     }
@@ -136,21 +142,12 @@ boost::optional<std::string> NodeRPCProxy::get_info()
     m_target_height = resp_t.target_height;
     m_block_weight_limit = resp_t.block_weight_limit ? resp_t.block_weight_limit : resp_t.block_size_limit;
     m_adjusted_time = resp_t.adjusted_time;
-    m_get_info_time = now;
-    m_height_time = now;
   }
   return boost::optional<std::string>();
 }
 
 boost::optional<std::string> NodeRPCProxy::get_height(uint64_t &height)
 {
-  const time_t now = time(NULL);
-  if (now < m_height_time + 30) // re-cache every 30 seconds
-  {
-    height = m_height;
-    return boost::optional<std::string>();
-  }
-
   auto res = get_info();
   if (res)
     return res;
@@ -163,7 +160,9 @@ boost::optional<std::string> NodeRPCProxy::get_target_height(uint64_t &height)
   auto res = get_info();
   if (res)
     return res;
-  height = m_target_height > m_height ? m_target_height : m_height;
+  // A target height that is lower than the block height makes no sense
+  // We adjust it here so consumers don't forget about this
+  height = m_target_height < m_height ? m_height : m_target_height;
   return boost::optional<std::string>();
 }
 
