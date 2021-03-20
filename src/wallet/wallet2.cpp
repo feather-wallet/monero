@@ -3557,6 +3557,18 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
         blocks_fetched += added_blocks;
       }
       THROW_WALLET_EXCEPTION_IF(!waiter.wait(), error::wallet_internal_error, "Exception in thread pool");
+
+      // Check for error before breaking out of loop
+        // handle error from async fetching thread
+        if (error)
+        {
+            m_node_rpc_proxy.invalidate();
+            if (exception)
+                std::rethrow_exception(exception);
+            else
+                throw std::runtime_error("proxy exception in refresh thread");
+        }
+
       if(!first && blocks_start_height == next_blocks_start_height)
       {
         m_node_rpc_proxy.set_height(m_blockchain.size());
@@ -3565,15 +3577,6 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
       }
 
       first = false;
-
-      // handle error from async fetching thread
-      if (error)
-      {
-        if (exception)
-          std::rethrow_exception(exception);
-        else
-          throw std::runtime_error("proxy exception in refresh thread");
-      }
 
       // if we've got at least 10 blocks to refresh, assume we're starting
       // a long refresh, and setup a tracking output cache if we need to
@@ -3652,7 +3655,35 @@ bool wallet2::refresh(bool trusted_daemon, uint64_t & blocks_fetched, bool& rece
   return ok;
 }
 //----------------------------------------------------------------------------------------------------
-bool wallet2::get_rct_distribution(uint64_t &start_height, std::vector<uint64_t> &distribution)
+bool wallet2::get_rct_distribution()
+{
+  // We haven't populated the cache yet, grab it
+  if (m_rct_offsets.size() == 0) {
+    return cache_rct_distribution(0);
+  }
+  // Our cache isn't up to date, we need to grab more offsets
+  else if (m_blockchain.size() > m_rct_offsets.size())
+  {
+    int blocks_missing = m_blockchain.size() - m_rct_offsets.size();
+    if (blocks_missing < 0) blocks_missing = 0;
+
+    int granularity = 10000;
+    size_t blocks_to_grab = (blocks_missing + granularity) - (blocks_missing % granularity);
+
+    int from_height;
+    if (m_blockchain.size() > blocks_to_grab) {
+      from_height = m_blockchain.size() - blocks_to_grab;
+    } else {
+      from_height = 0;
+    }
+
+    return cache_rct_distribution(from_height);
+  }
+
+  return true;
+}
+
+bool wallet2::cache_rct_distribution(uint64_t from_height)
 {
   uint32_t rpc_version;
   boost::optional<std::string> result = m_node_rpc_proxy.get_rpc_version(rpc_version);
@@ -3684,7 +3715,7 @@ bool wallet2::get_rct_distribution(uint64_t &start_height, std::vector<uint64_t>
   cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::request req = AUTO_VAL_INIT(req);
   cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::response res = AUTO_VAL_INIT(res);
   req.amounts.push_back(0);
-  req.from_height = 0;
+  req.from_height = from_height;
   req.cumulative = false;
   req.binary = true;
   req.compress = true;
@@ -3713,10 +3744,28 @@ bool wallet2::get_rct_distribution(uint64_t &start_height, std::vector<uint64_t>
     MWARNING("Failed to request output distribution: results are not for amount 0");
     return false;
   }
-  for (size_t i = 1; i < res.distributions[0].data.distribution.size(); ++i)
-    res.distributions[0].data.distribution[i] += res.distributions[0].data.distribution[i-1];
-  start_height = res.distributions[0].data.start_height;
-  distribution = std::move(res.distributions[0].data.distribution);
+
+  uint64_t start_height = res.distributions[0].data.start_height;
+  auto& distribution = res.distributions[0].data.distribution;
+
+  // Reset cache
+  if (from_height == 0) {
+    for (size_t i = 1; i < res.distributions[0].data.distribution.size(); ++i)
+      res.distributions[0].data.distribution[i] += res.distributions[0].data.distribution[i-1];
+
+    m_rct_offsets.init(start_height, res.distributions[0].data.distribution);
+  } else {
+    if (start_height > m_rct_offsets.start_height()) {
+      m_rct_offsets.crop(start_height);
+      for (const auto& offset : distribution) {
+        m_rct_offsets.push_back(offset);
+      }
+    } else {
+      MWARNING("Invalid start_height for offsets cache");
+      return false;
+    }
+  }
+
   return true;
 }
 //----------------------------------------------------------------------------------------------------
@@ -8473,16 +8522,15 @@ std::pair<std::set<uint64_t>, size_t> outs_unique(const std::vector<std::vector<
 
 void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, bool rct)
 {
-  std::vector<uint64_t> rct_offsets;
   for (size_t attempts = 3; attempts > 0; --attempts)
   {
-    get_outs(outs, selected_transfers, fake_outputs_count, rct_offsets);
+    get_outs(outs, selected_transfers, fake_outputs_count);
 
     if (!rct)
       return;
 
     const auto unique = outs_unique(outs);
-    if (tx_sanity_check(unique.first, unique.second, rct_offsets.empty() ? 0 : rct_offsets.back()))
+    if (tx_sanity_check(unique.first, unique.second, m_rct_offsets.empty() ? 0 : m_rct_offsets.back()))
     {
       return;
     }
@@ -8498,7 +8546,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
   THROW_WALLET_EXCEPTION(error::wallet_internal_error, tr("Transaction sanity check failed"));
 }
 
-void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count, std::vector<uint64_t> &rct_offsets)
+void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> &outs, const std::vector<size_t> &selected_transfers, size_t fake_outputs_count)
 {
   LOG_PRINT_L2("fake_outputs_count: " << fake_outputs_count);
   outs.clear();
@@ -8519,7 +8567,6 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
     bool is_after_segregation_fork = height >= segregation_fork_height;
 
     // if we have at least one rct out, get the distribution, or fall back to the previous system
-    uint64_t rct_start_height;
     bool has_rct = false;
     uint64_t max_rct_index = 0;
     for (size_t idx: selected_transfers)
@@ -8528,13 +8575,13 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
         has_rct = true;
         max_rct_index = std::max(max_rct_index, m_transfers[idx].m_global_output_index);
       }
-    const bool has_rct_distribution = has_rct && (!rct_offsets.empty() || get_rct_distribution(rct_start_height, rct_offsets));
+    const bool has_rct_distribution = has_rct && get_rct_distribution();
     if (has_rct_distribution)
     {
       // check we're clear enough of rct start, to avoid corner cases below
-      THROW_WALLET_EXCEPTION_IF(rct_offsets.size() <= CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE,
+      THROW_WALLET_EXCEPTION_IF(m_rct_offsets.size() <= CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE,
           error::get_output_distribution, "Not enough rct outputs");
-      THROW_WALLET_EXCEPTION_IF(rct_offsets.back() <= max_rct_index,
+      THROW_WALLET_EXCEPTION_IF(m_rct_offsets.back() <= max_rct_index,
           error::get_output_distribution, "Daemon reports suspicious number of rct outputs");
     }
 
@@ -8625,7 +8672,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
 
     std::unique_ptr<gamma_picker> gamma;
     if (has_rct_distribution)
-      gamma.reset(new gamma_picker(rct_offsets));
+      gamma.reset(new gamma_picker(m_rct_offsets.offsets()));
 
     size_t num_selected_transfers = 0;
     for(size_t idx: selected_transfers)
@@ -8704,7 +8751,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
       else
       {
         // the base offset of the first rct output in the first unlocked block (or the one to be if there's none)
-        num_outs = rct_offsets[rct_offsets.size() - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE];
+        num_outs = m_rct_offsets[m_rct_offsets.size() - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE];
         LOG_PRINT_L1("" << num_outs << " unlocked rct outputs");
         THROW_WALLET_EXCEPTION_IF(num_outs == 0, error::wallet_internal_error,
             "histogram reports no unlocked rct outputs, not even ours");
@@ -8971,7 +9018,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
       }
       bool use_histogram = amount != 0 || !has_rct_distribution;
       if (!use_histogram)
-        num_outs = rct_offsets[rct_offsets.size() - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE];
+        num_outs = m_rct_offsets[m_rct_offsets.size() - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE];
 
       // make sure the real outputs we asked for are really included, along
       // with the correct key and mask: this guards against an active attack
