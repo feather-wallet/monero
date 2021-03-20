@@ -643,7 +643,10 @@ struct Wallet
      * \param proxy_address - set proxy address, empty string to disable
      * \return  - true on success
      */
-    virtual bool init(const std::string &daemon_address, uint64_t upper_transaction_size_limit = 0, const std::string &daemon_username = "", const std::string &daemon_password = "", bool use_ssl = false, bool lightWallet = false, const std::string &proxy_address = "") = 0;
+    virtual bool init(const std::string &daemon_address, uint64_t upper_transaction_size_limit = 0, const std::string &daemon_username = "", const std::string &daemon_password = "", bool use_ssl = false, bool lightWallet = false, const std::string &proxy_address = "", bool use_dns = false) = 0;
+
+
+    virtual bool setDaemon(const std::string &daemon_address, const std::string &daemon_username = "", const std::string &daemon_password = "", bool use_ssl = false) const = 0;
 
    /*!
     * \brief createWatchOnly - Creates a watch only wallet
