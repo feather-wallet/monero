@@ -4098,6 +4098,7 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
       // handle error from async fetching thread
       if (error)
       {
+        m_node_rpc_proxy.invalidate();
         if (exception)
           std::rethrow_exception(exception);
         else
@@ -4202,14 +4203,42 @@ bool wallet2::refresh(bool trusted_daemon, uint64_t & blocks_fetched, bool& rece
   return ok;
 }
 //----------------------------------------------------------------------------------------------------
-bool wallet2::get_rct_distribution(uint64_t &start_height, std::vector<uint64_t> &distribution)
+bool wallet2::get_rct_distribution()
+{
+  // We haven't populated the cache yet, grab it
+  if (m_rct_offsets.size() == 0) {
+    return cache_rct_distribution(0);
+  }
+  // Our cache isn't up to date, we need to grab more offsets
+  else if (m_blockchain.size() > m_rct_offsets.size())
+  {
+    int blocks_missing = m_blockchain.size() - m_rct_offsets.size();
+    if (blocks_missing < 0) blocks_missing = 0;
+
+    int granularity = 10000;
+    size_t blocks_to_grab = (blocks_missing + granularity) - (blocks_missing % granularity);
+
+    int from_height;
+    if (m_blockchain.size() > blocks_to_grab) {
+      from_height = m_blockchain.size() - blocks_to_grab;
+    } else {
+      from_height = 0;
+    }
+
+    return cache_rct_distribution(from_height);
+  }
+
+  return true;
+}
+
+bool wallet2::cache_rct_distribution(uint64_t from_height)
 {
   MDEBUG("Requesting rct distribution");
 
   cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::request req = AUTO_VAL_INIT(req);
   cryptonote::COMMAND_RPC_GET_OUTPUT_DISTRIBUTION::response res = AUTO_VAL_INIT(res);
   req.amounts.push_back(0);
-  req.from_height = 0;
+  req.from_height = from_height;
   req.cumulative = false;
   req.binary = true;
   req.compress = true;
@@ -4238,10 +4267,28 @@ bool wallet2::get_rct_distribution(uint64_t &start_height, std::vector<uint64_t>
     MWARNING("Failed to request output distribution: results are not for amount 0");
     return false;
   }
-  for (size_t i = 1; i < res.distributions[0].data.distribution.size(); ++i)
-    res.distributions[0].data.distribution[i] += res.distributions[0].data.distribution[i-1];
-  start_height = res.distributions[0].data.start_height;
-  distribution = std::move(res.distributions[0].data.distribution);
+
+  uint64_t start_height = res.distributions[0].data.start_height;
+  auto& distribution = res.distributions[0].data.distribution;
+
+  // Reset cache
+  if (from_height == 0) {
+    for (size_t i = 1; i < res.distributions[0].data.distribution.size(); ++i)
+      res.distributions[0].data.distribution[i] += res.distributions[0].data.distribution[i-1];
+
+    m_rct_offsets.init(start_height, res.distributions[0].data.distribution);
+  } else {
+    if (start_height > m_rct_offsets.start_height()) {
+      m_rct_offsets.crop(start_height);
+      for (const auto& offset : distribution) {
+        m_rct_offsets.push_back(offset);
+      }
+    } else {
+      MWARNING("Invalid start_height for offsets cache");
+      return false;
+    }
+  }
+
   return true;
 }
 //----------------------------------------------------------------------------------------------------
@@ -9028,7 +9075,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
       return;
 
     const auto unique = outs_unique(outs);
-    if (tx_sanity_check(unique.first, unique.second, rct_offsets.empty() ? 0 : rct_offsets.back()))
+    if (tx_sanity_check(unique.first, unique.second, m_rct_offsets.empty() ? 0 : m_rct_offsets.back()))
     {
       return;
     }
@@ -9065,7 +9112,6 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
     bool is_after_segregation_fork = height >= segregation_fork_height;
 
     // if we have at least one rct out, get the distribution, or fall back to the previous system
-    uint64_t rct_start_height;
     bool has_rct = false;
     uint64_t max_rct_index = 0;
     for (size_t idx: selected_transfers)
@@ -9075,17 +9121,17 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
         max_rct_index = std::max(max_rct_index, m_transfers[idx].m_global_output_index);
       }
 
-    if (has_rct && rct_offsets.empty()) {
-      THROW_WALLET_EXCEPTION_IF(!get_rct_distribution(rct_start_height, rct_offsets),
+    if (has_rct) {
+      THROW_WALLET_EXCEPTION_IF(!get_rct_distribution(),
           error::get_output_distribution, "Could not obtain output distribution.");
     }
 
     if (has_rct)
     {
       // check we're clear enough of rct start, to avoid corner cases below
-      THROW_WALLET_EXCEPTION_IF(rct_offsets.size() <= CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE,
+      THROW_WALLET_EXCEPTION_IF(m_rct_offsets.size() <= CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE,
           error::get_output_distribution, "Not enough rct outputs");
-      THROW_WALLET_EXCEPTION_IF(rct_offsets.back() <= max_rct_index,
+      THROW_WALLET_EXCEPTION_IF(m_rct_offsets.back() <= max_rct_index,
           error::get_output_distribution, "Daemon reports suspicious number of rct outputs");
     }
 
@@ -9197,7 +9243,7 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
 
     std::unique_ptr<gamma_picker> gamma;
     if (has_rct)
-      gamma.reset(new gamma_picker(rct_offsets));
+      gamma.reset(new gamma_picker(m_rct_offsets.offsets()));
 
     size_t num_selected_transfers = 0;
     req.outputs.reserve(selected_transfers.size() * (base_requested_outputs_count + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW));
