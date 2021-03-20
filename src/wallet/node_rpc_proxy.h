@@ -105,6 +105,7 @@ private:
   time_t m_height_time;
   time_t m_target_height_time;
   std::vector<std::pair<uint8_t, uint64_t>> m_daemon_hard_forks;
+  std::vector<uint64_t> m_rct_offsets;
 };
 
 }
