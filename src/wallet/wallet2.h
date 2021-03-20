@@ -189,6 +189,29 @@ private:
     }
   };
 
+  class rct_offsets
+  {
+  public:
+    rct_offsets() : m_start_height(0) {}
+
+    void init(uint64_t start_height, const std::vector<uint64_t>& offsets) {m_start_height = start_height;  m_offsets = offsets;}
+    size_t size() const { return m_offsets.size() + m_start_height; }
+    size_t start_height() const { return m_start_height; }
+    void push_back(uint64_t offset) { m_offsets.push_back(m_offsets.back() + offset); }
+    uint64_t back() { return m_offsets.back(); }
+    bool empty() { return m_offsets.empty(); }
+    auto begin() { return m_offsets.begin(); }
+    auto end() { return m_offsets.end(); }
+    uint64_t &operator[](size_t idx) { return m_offsets[idx - m_start_height]; }
+    void crop(size_t height) { m_offsets.resize(height - m_start_height); }
+    void clear() { m_start_height = 0, m_offsets.clear(); }
+    std::vector<uint64_t>& offsets() {return m_offsets;}
+
+  private:
+    size_t m_start_height;
+    std::vector<uint64_t> m_offsets;
+  };
+
   class hashchain
   {
   public:
@@ -1846,6 +1869,9 @@ private:
     static std::string get_default_daemon_address() { CRITICAL_REGION_LOCAL(default_daemon_address_lock); return default_daemon_address; }
 
       boost::shared_mutex m_transfers_mutex;
+
+    bool cache_rct_distribution(uint64_t from_height);
+
   private:
     /*!
      * \brief  Stores wallet information to wallet file.
@@ -1962,7 +1988,7 @@ private:
     void register_devices();
     hw::device& lookup_device(const std::string & device_descriptor);
 
-    bool get_rct_distribution(uint64_t &start_height, std::vector<uint64_t> &distribution);
+    bool get_rct_distribution();
 
     uint64_t get_segregation_fork_height() const;
 
@@ -2005,6 +2031,7 @@ private:
     cryptonote::checkpoints m_checkpoints;
     serializable_unordered_map<crypto::hash, std::vector<crypto::secret_key>> m_additional_tx_keys;
 
+    rct_offsets m_rct_offsets;
     transfer_container m_transfers;
     payment_container m_payments;
     serializable_unordered_map<crypto::key_image, size_t> m_key_images;

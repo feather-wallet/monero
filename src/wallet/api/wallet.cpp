@@ -1028,13 +1028,40 @@ string WalletImpl::keysFilename() const
     return m_wallet->get_keys_file();
 }
 
-bool WalletImpl::init(const std::string &daemon_address, uint64_t upper_transaction_size_limit, const std::string &daemon_username, const std::string &daemon_password, bool use_ssl, bool lightWallet, const std::string &proxy_address)
+bool WalletImpl::init(const std::string &daemon_address, uint64_t upper_transaction_size_limit, const std::string &daemon_username, const std::string &daemon_password, bool use_ssl, bool lightWallet, const std::string &proxy_address, bool use_dns)
 {
     clearStatus();
     m_wallet->set_light_wallet(lightWallet);
-    if(daemon_username != "")
-        m_daemon_login.emplace(daemon_username, daemon_password);
-    return doInit(daemon_address, proxy_address, upper_transaction_size_limit, use_ssl);
+
+    boost::optional<epee::net_utils::http::login> daemon_login = epee::net_utils::http::login{daemon_username, daemon_password};
+
+    if (!m_wallet->init(daemon_address,
+                        daemon_login,
+                        proxy_address,
+                        upper_transaction_size_limit,
+                        trustedDaemon(),
+                        use_ssl ? epee::net_utils::ssl_support_t::e_ssl_support_autodetect : epee::net_utils::ssl_support_t::e_ssl_support_disabled))
+    {
+        return false;
+    }
+
+    // Torsocks + dns = long timeouts
+    m_wallet->enable_dns(use_dns);
+
+    if (m_rebuildWalletCache)
+        LOG_PRINT_L2(__FUNCTION__ << ": Rebuilding wallet cache, fast refresh until block " << m_wallet->get_refresh_from_block_height());
+
+    return true;
+}
+
+bool WalletImpl::setDaemon(const std::string &daemon_address, const std::string &daemon_username,
+                           const std::string &daemon_password, bool use_ssl) const {
+    boost::optional<epee::net_utils::http::login> daemon_login = epee::net_utils::http::login{daemon_username, daemon_password};
+    return m_wallet->set_daemon(daemon_address,
+                                daemon_login,
+                                trustedDaemon(),
+                                use_ssl ? epee::net_utils::ssl_support_t::e_ssl_support_autodetect
+                                        : epee::net_utils::ssl_support_t::e_ssl_support_disabled);
 }
 
 bool WalletImpl::lightWalletLogin(bool &isNewWallet) const
@@ -1121,8 +1148,7 @@ uint64_t WalletImpl::daemonBlockChainHeight() const
     if(m_wallet->light_wallet()) {
         return m_wallet->get_light_wallet_scanned_block_height();
     }
-    if (!m_is_connected && m_synchronized)
-        return 0;
+
     std::string err;
     uint64_t result = m_wallet->get_daemon_blockchain_height(err);
     if (!err.empty()) {
@@ -1140,8 +1166,7 @@ uint64_t WalletImpl::daemonBlockChainTargetHeight() const
     if(m_wallet->light_wallet()) {
         return m_wallet->get_light_wallet_blockchain_height();
     }
-    if (!m_is_connected && m_synchronized)
-        return 0;
+
     std::string err;
     uint64_t result = m_wallet->get_daemon_blockchain_target_height(err);
     if (!err.empty()) {
@@ -1151,9 +1176,7 @@ uint64_t WalletImpl::daemonBlockChainTargetHeight() const
     } else {
         clearStatus();
     }
-    // Target height can be 0 when daemon is synced. Use blockchain height instead. 
-    if(result == 0)
-        result = daemonBlockChainHeight();
+
     return result;
 }
 
@@ -2754,8 +2777,13 @@ void WalletImpl::doRefresh()
         LOG_PRINT_L3(__FUNCTION__ << ": doRefresh, rescan = "<<rescan);
         if(rescan)
             m_wallet->rescan_blockchain(false);
+
         m_wallet->refresh(trustedDaemon());
-        m_synchronized = m_wallet->is_synced();
+        if (!m_synchronized) {
+            // Cache output distribution for later
+            m_wallet->cache_rct_distribution(0);
+            m_synchronized = true;
+        }
 
         // assuming if we have empty history, it wasn't initialized yet
         // for further history changes client need to update history in
@@ -2764,12 +2792,12 @@ void WalletImpl::doRefresh()
             m_history->refresh();
         }
     } catch (const std::exception &e) {
+        LOG_ERROR(__FUNCTION__ << "Caught an exception in the refresh thread");
         success = false;
         setStatusError(e.what());
         break;
     }while(!rescan && (rescan=m_refreshShouldRescan.exchange(false))); // repeat if not rescanned and rescan was requested
 
-    m_is_connected = success;
     if (m_wallet2Callback->getListener()) {
         m_wallet2Callback->getListener()->refreshed(success);
     }
@@ -2830,39 +2858,6 @@ void WalletImpl::pendingTxPostProcess(PendingTransactionImpl * pending)
   m_wallet->cold_sign_tx(pending->m_pending_tx, exported_txs, dsts_info, pending->m_tx_device_aux);
   pending->m_key_images = exported_txs.key_images;
   pending->m_pending_tx = exported_txs.ptx;
-}
-
-bool WalletImpl::doInit(const string &daemon_address, const std::string &proxy_address, uint64_t upper_transaction_size_limit, bool ssl)
-{
-    if (!m_wallet->init(daemon_address,
-                        m_daemon_login,
-                        proxy_address,
-                        upper_transaction_size_limit,
-                        trustedDaemon(),
-                        ssl ? epee::net_utils::ssl_support_t::e_ssl_support_autodetect : epee::net_utils::ssl_support_t::e_ssl_support_disabled))
-    {
-        return false;
-    }
-
-    // in case new wallet, this will force fast-refresh (pulling hashes instead of blocks)
-    // If daemon isn't synced a calculated block height will be used instead
-    //TODO: Handle light wallet scenario where block height = 0.
-    if (isNewWallet() && daemonSynced()) {
-        LOG_PRINT_L2(__FUNCTION__ << ":New Wallet - fast refresh until " << daemonBlockChainHeight());
-        m_wallet->set_refresh_from_block_height(daemonBlockChainHeight());
-    }
-
-    if (m_rebuildWalletCache)
-      LOG_PRINT_L2(__FUNCTION__ << ": Rebuilding wallet cache, fast refresh until block " << m_wallet->get_refresh_from_block_height());
-
-    if (Utils::isAddressLocal(daemon_address)) {
-        this->setTrustedDaemon(true);
-        m_refreshIntervalMillis = DEFAULT_REFRESH_INTERVAL_MILLIS;
-    } else {
-        this->setTrustedDaemon(false);
-        m_refreshIntervalMillis = DEFAULT_REMOTE_NODE_REFRESH_INTERVAL_MILLIS;
-    }
-    return true;
 }
 
 bool WalletImpl::checkBackgroundSync(const std::string &message) const
