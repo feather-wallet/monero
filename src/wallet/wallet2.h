@@ -1032,7 +1032,11 @@ private:
       const std::string &proxy = "");
     bool set_proxy(const std::string &address);
 
-    void stop() { m_run.store(false, std::memory_order_relaxed); m_message_store.stop(); }
+    void stop() {
+        m_run.store(false, std::memory_order_relaxed);
+        m_message_store.stop();
+        m_http_client->cancel_read();
+    }
 
     i_wallet2_callback* callback() const { return m_callback; }
     void callback(i_wallet2_callback* callback) { m_callback = callback; }
