@@ -200,6 +200,11 @@ namespace net_utils
 				CRITICAL_REGION_LOCAL(m_lock);
 				return m_net_client.disconnect();
 			}
+        //---------------------------------------------------------------------------
+        bool cancel_read() override
+        {
+            return m_net_client.cancel_read();
+        }
 			//---------------------------------------------------------------------------
 			bool is_connected(bool *ssl = NULL) override
 			{
