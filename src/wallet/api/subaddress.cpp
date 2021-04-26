@@ -41,13 +41,31 @@ Subaddress::~Subaddress() {}
 SubaddressImpl::SubaddressImpl(WalletImpl *wallet)
     : m_wallet(wallet) {}
 
-void SubaddressImpl::addRow(uint32_t accountIndex, const std::string &label)
+bool SubaddressImpl::addRow(uint32_t accountIndex, const std::string &label)
 {
-  m_wallet->m_wallet->add_subaddress(accountIndex, label);
-  refresh(accountIndex);
+  clearStatus();
+
+  // This can fail if hardware device is unplugged during operating, catch here to prevent crash
+  // Todo: Notify GUI that it was a device error
+  try
+  {
+      m_wallet->m_wallet->add_subaddress(accountIndex, label);
+      refresh(accountIndex);
+  }
+  catch (const std::exception& e)
+  {
+      if (m_wallet->m_wallet->key_on_device()) {
+
+      }
+      LOG_ERROR("addRow: " << e.what());
+      m_errorString = e.what();
+      return false;
+  }
+
+  return true;
 }
 
-void SubaddressImpl::setLabel(uint32_t accountIndex, uint32_t addressIndex, const std::string &label)
+bool SubaddressImpl::setLabel(uint32_t accountIndex, uint32_t addressIndex, const std::string &label)
 {
   try
   {
@@ -57,7 +75,11 @@ void SubaddressImpl::setLabel(uint32_t accountIndex, uint32_t addressIndex, cons
   catch (const std::exception& e)
   {
     LOG_ERROR("setLabel: " << e.what());
+    m_errorString = e.what();
+    return false;
   }
+
+  return true;
 }
 
 void SubaddressImpl::refresh(uint32_t accountIndex) 
@@ -79,6 +101,11 @@ void SubaddressImpl::clearRows() {
      delete r;
    }
    m_rows.clear();
+}
+
+void SubaddressImpl::clearStatus(){
+    m_errorString = "";
+    m_errorCode = 0;
 }
 
 std::vector<SubaddressRow*> SubaddressImpl::getAll() const
