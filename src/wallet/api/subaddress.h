@@ -42,15 +42,21 @@ public:
     // Fetches addresses from Wallet2
     void refresh(uint32_t accountIndex) override;
     std::vector<SubaddressRow*> getAll() const override;
-    void addRow(uint32_t accountIndex, const std::string &label) override;
-    void setLabel(uint32_t accountIndex, uint32_t addressIndex, const std::string &label) override;
+    bool addRow(uint32_t accountIndex, const std::string &label) override;
+    bool setLabel(uint32_t accountIndex, uint32_t addressIndex, const std::string &label) override;
+
+    std::string errorString() const override {return m_errorString;}
+    int errorCode() const override {return m_errorCode;}
 
 private:
     void clearRows();
+    void clearStatus();
     
 private:
     WalletImpl *m_wallet;
     std::vector<SubaddressRow*> m_rows;
+    std::string m_errorString;
+    int m_errorCode;
 };
 
 }

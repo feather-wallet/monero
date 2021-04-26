@@ -46,6 +46,7 @@ set(device_headers
   device_default.hpp
   device_cold.hpp
   log.hpp
+  device_errors.hpp
  )
 
 if(HIDAPI_FOUND)
