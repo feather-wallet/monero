@@ -380,8 +380,10 @@ struct Subaddress
 {
     virtual ~Subaddress() = 0;
     virtual std::vector<SubaddressRow*> getAll() const = 0;
-    virtual void addRow(uint32_t accountIndex, const std::string &label) = 0;
-    virtual void setLabel(uint32_t accountIndex, uint32_t addressIndex, const std::string &label) = 0;
+    virtual bool addRow(uint32_t accountIndex, const std::string &label) = 0;
+    virtual bool setLabel(uint32_t accountIndex, uint32_t addressIndex, const std::string &label) = 0;
+    virtual std::string errorString() const = 0;
+    virtual int errorCode() const = 0;
     virtual void refresh(uint32_t accountIndex) = 0;
 };
 
@@ -493,6 +495,11 @@ struct WalletListener
     virtual void onDeviceButtonPressed() { }
 
     /**
+     * @brief called by device if an error occurred
+     */
+    virtual void onDeviceError(const std::string &msg) {};
+
+    /**
      * @brief called by device when PIN is needed
      */
     virtual optional<std::string> onDevicePinRequest() {
@@ -533,7 +540,8 @@ struct Wallet
     enum Status {
         Status_Ok,
         Status_Error,
-        Status_Critical
+        Status_Critical,
+        Status_BadPassword
     };
 
     enum ConnectionStatus {
@@ -1250,6 +1258,9 @@ struct Wallet
 
     //! get bytes sent
     virtual uint64_t getBytesSent() = 0;
+
+    //! is hw device connected
+    virtual bool isDeviceConnected() = 0;
 };
 
 /**
