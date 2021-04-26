@@ -150,6 +150,7 @@ private:
     // Device callbacks
     virtual void on_device_button_request(uint64_t code) {}
     virtual void on_device_button_pressed() {}
+    virtual void on_device_error(const std::string &msg) {}
     virtual boost::optional<epee::wipeable_string> on_device_pin_request() { return boost::none; }
     virtual boost::optional<epee::wipeable_string> on_device_passphrase_request(bool & on_device) { on_device = true; return boost::none; }
     virtual void on_device_progress(const hw::device_progress& event) {};
@@ -164,6 +165,7 @@ private:
     wallet_device_callback(wallet2 * wallet): wallet(wallet) {};
     void on_button_request(uint64_t code=0) override;
     void on_button_pressed() override;
+    void on_error(const std::string &message) override;
     boost::optional<epee::wipeable_string> on_pin_request() override;
     boost::optional<epee::wipeable_string> on_passphrase_request(bool & on_device) override;
     void on_progress(const hw::device_progress& event) override;
@@ -1039,6 +1041,7 @@ private:
     bool key_on_device() const { return get_device_type() != hw::device::device_type::SOFTWARE; }
     hw::device::device_type get_device_type() const { return m_key_device_type; }
     bool reconnect_device();
+    bool device_connected();
 
     // locked & unlocked balance of given or current subaddress account
     uint64_t balance(uint32_t subaddr_index_major, bool strict) const;
@@ -1781,6 +1784,7 @@ private:
     wallet_device_callback * get_device_callback();
     void on_device_button_request(uint64_t code);
     void on_device_button_pressed();
+    void on_device_error(const std::string &message);
     boost::optional<epee::wipeable_string> on_device_pin_request();
     boost::optional<epee::wipeable_string> on_device_passphrase_request(bool & on_device);
     void on_device_progress(const hw::device_progress& event);
@@ -1795,6 +1799,7 @@ private:
     bool spends_one_of_ours(const cryptonote::transaction &tx) const;
 
     cryptonote::account_base m_account;
+    crypto::secret_key m_hw_view_key;
     boost::optional<epee::net_utils::http::login> m_daemon_login;
     std::string m_daemon_address;
     std::string m_wallet_file;
