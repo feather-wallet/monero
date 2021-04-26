@@ -246,6 +246,13 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
       }
     }
 
+    virtual void on_device_error(const std::string &message)
+    {
+        if (m_listener) {
+            m_listener->onDeviceError(message);
+        }
+    }
+
     virtual boost::optional<epee::wipeable_string> on_device_pin_request()
     {
       if (m_listener) {
@@ -438,12 +445,8 @@ WalletImpl::~WalletImpl()
 
     LOG_PRINT_L1(__FUNCTION__);
     m_wallet->callback(NULL);
-    // Pause refresh thread - prevents refresh from starting again
-    WalletImpl::pauseRefresh(); // Call the method directly (not polymorphically) to protect against UB in destructor.
     // Close wallet - stores cache and stops ongoing refresh operation 
     close(false); // do not store wallet as part of the closing activities
-    // Stop refresh thread
-    stopRefresh();
 
     if (m_wallet2Callback->getListener()) {
       m_wallet2Callback->getListener()->onSetWallet(nullptr);
@@ -701,10 +704,15 @@ bool WalletImpl::open(const std::string &path, const std::string &password)
         m_wallet->load(path, password);
 
         m_password = password;
-    } catch (const std::exception &e) {
+    } catch (const tools::error::invalid_password &e) {
+        LOG_ERROR("Error opening wallet: " << e.what());
+        setStatus(Status_BadPassword, e.what());
+    }
+    catch (const std::exception &e) {
         LOG_ERROR("Error opening wallet: " << e.what());
         setStatusCritical(e.what());
     }
+    m_deviceConnected = true;
     return status() == Status_Ok;
 }
 
@@ -746,6 +754,7 @@ bool WalletImpl::recover(const std::string &path, const std::string &password, c
     } catch (const std::exception &e) {
         setStatusCritical(e.what());
     }
+    m_deviceConnected = true;
     return status() == Status_Ok;
 }
 
@@ -791,7 +800,7 @@ bool WalletImpl::close(bool store)
         if (store) {
             // Do not store wallet with invalid status
             // Status Critical refers to errors on opening or creating wallets.
-            if (status() != Status_Critical)
+            if (status() != Status_Critical && status() != Status_BadPassword)
                 m_wallet->store();
             else
                 LOG_ERROR("Status_Critical - not saving wallet");
@@ -1154,10 +1163,7 @@ bool WalletImpl::synchronized() const
 bool WalletImpl::refresh()
 {
     clearStatus();
-    //TODO: make doRefresh return bool to know whether the error occured during refresh or not
-    //otherwise one may try, say, to send transaction, transfer fails and this method returns false
-    doRefresh();
-    return status() == Status_Ok;
+    return doRefresh();
 }
 
 void WalletImpl::refreshAsync()
@@ -1665,8 +1671,6 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<stri
 
 {
     clearStatus();
-    // Pause refresh thread while creating transaction
-    pauseRefresh();
       
     cryptonote::address_parse_info info;
 
@@ -1820,8 +1824,7 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<stri
     } while (false);
 
     statusWithErrorString(transaction->m_status, transaction->m_errorString);
-    // Resume refresh thread
-    startRefresh();
+
     return transaction;
 }
 
@@ -1836,8 +1839,6 @@ PendingTransaction *WalletImpl::createTransactionSingle(const string &key_image,
                                                         const size_t outputs, PendingTransaction::Priority priority)
 {
     clearStatus();
-    // Pause refresh thread while creating transaction
-    pauseRefresh();
 
     cryptonote::address_parse_info info;
 
@@ -1958,8 +1959,7 @@ PendingTransaction *WalletImpl::createTransactionSingle(const string &key_image,
     } while (false);
 
     statusWithErrorString(transaction->m_status, transaction->m_errorString);
-    // Resume refresh thread
-    startRefresh();
+
     return transaction;
 }
 
@@ -2524,38 +2524,7 @@ void WalletImpl::setStatus(int status, const std::string& message) const
     m_errorString = message;
 }
 
-void WalletImpl::refreshThreadFunc()
-{
-    LOG_PRINT_L3(__FUNCTION__ << ": starting refresh thread");
-
-    while (true) {
-        boost::mutex::scoped_lock lock(m_refreshMutex);
-        if (m_refreshThreadDone) {
-            break;
-        }
-        LOG_PRINT_L3(__FUNCTION__ << ": waiting for refresh...");
-        // if auto refresh enabled, we wait for the "m_refreshIntervalSeconds" interval.
-        // if not - we wait forever
-        if (m_refreshIntervalMillis > 0) {
-            boost::posix_time::milliseconds wait_for_ms(m_refreshIntervalMillis.load());
-            m_refreshCV.timed_wait(lock, wait_for_ms);
-        } else {
-            m_refreshCV.wait(lock);
-        }
-
-        LOG_PRINT_L3(__FUNCTION__ << ": refresh lock acquired...");
-        LOG_PRINT_L3(__FUNCTION__ << ": m_refreshEnabled: " << m_refreshEnabled);
-        LOG_PRINT_L3(__FUNCTION__ << ": m_status: " << status());
-        LOG_PRINT_L3(__FUNCTION__ << ": m_refreshShouldRescan: " << m_refreshShouldRescan);
-        if (m_refreshEnabled) {
-            LOG_PRINT_L3(__FUNCTION__ << ": refreshing...");
-            doRefresh();
-        }
-    }
-    LOG_PRINT_L3(__FUNCTION__ << ": refresh thread stopped");
-}
-
-void WalletImpl::doRefresh()
+bool WalletImpl::doRefresh()
 {
     bool success = true;
     bool rescan = m_refreshShouldRescan.exchange(false);
@@ -2591,6 +2560,8 @@ void WalletImpl::doRefresh()
     if (m_wallet2Callback->getListener()) {
         m_wallet2Callback->getListener()->refreshed(success);
     }
+
+    return success;
 }
 
 void WalletImpl::startRefresh()
@@ -2599,16 +2570,6 @@ void WalletImpl::startRefresh()
         LOG_PRINT_L2(__FUNCTION__ << ": refresh started/resumed...");
         m_refreshEnabled = true;
         m_refreshCV.notify_one();
-    }
-}
-
-void WalletImpl::stopRefresh()
-{
-    if (!m_refreshThreadDone) {
-        m_refreshEnabled = false;
-        m_refreshThreadDone = true;
-        m_refreshCV.notify_one();
-        m_refreshThread.join();
     }
 }
 
@@ -2915,4 +2876,8 @@ uint64_t WalletImpl::getBytesSent()
     return m_wallet->get_bytes_sent();
 }
 
+bool WalletImpl::isDeviceConnected()
+{
+    return m_wallet->device_connected();
+}
 } // namespace
