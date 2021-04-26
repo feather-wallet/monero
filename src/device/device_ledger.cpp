@@ -29,6 +29,8 @@
 
 #include "version.h"
 #include "device_ledger.hpp"
+#include "device_errors.hpp"
+#include "int-util.h"
 #include "ringct/rctOps.h"
 #include "cryptonote_basic/account.h"
 #include "cryptonote_basic/subaddress_index.h"
@@ -36,6 +38,8 @@
 
 #include <boost/thread/locks.hpp> 
 #include <boost/thread/lock_guard.hpp>
+
+#include "string_tools.h"
 
 namespace hw {
 
@@ -99,7 +103,6 @@ namespace hw {
       LEDGER_STATUS(SW_SECURITY_OUTKEYS_CHAIN_CONTROL),
       LEDGER_STATUS(SW_SECURITY_MAXOUTPUT_REACHED),
       LEDGER_STATUS(SW_SECURITY_TRUSTED_INPUT),
-      LEDGER_STATUS(SW_CLIENT_NOT_SUPPORTED),
       LEDGER_STATUS(SW_SECURITY_STATUS_NOT_SATISFIED),
       LEDGER_STATUS(SW_FILE_INVALID),
       LEDGER_STATUS(SW_PIN_BLOCKED),
@@ -107,6 +110,7 @@ namespace hw {
       LEDGER_STATUS(SW_CONDITIONS_NOT_SATISFIED),
       LEDGER_STATUS(SW_COMMAND_NOT_ALLOWED),
       LEDGER_STATUS(SW_APPLET_SELECT_FAILED),
+      LEDGER_STATUS(SW_CLIENT_NOT_SUPPORTED),
       LEDGER_STATUS(SW_WRONG_DATA),
       LEDGER_STATUS(SW_FUNC_NOT_SUPPORTED),
       LEDGER_STATUS(SW_FILE_NOT_FOUND),
@@ -313,6 +317,7 @@ namespace hw {
       this->mode = NONE;
       this->has_view_key = false;
       this->tx_in_progress = false;
+      m_callback = nullptr;
       MDEBUG( "Device "<<this->id <<" Created");
     }
 
@@ -475,7 +480,15 @@ namespace hw {
     unsigned int device_ledger::exchange(unsigned int ok, unsigned int mask) {
       logCMD();
 
-      this->length_recv =  hw_device.exchange(this->buffer_send, this->length_send, this->buffer_recv, BUFFER_SEND_SIZE, false);
+      try {
+          this->length_recv =  hw_device.exchange(this->buffer_send, this->length_send, this->buffer_recv, BUFFER_SEND_SIZE, false);
+      }
+      catch (const hw::error::device_disconnected &e) {
+          if (m_callback) {
+              m_callback->on_error(e.what());
+          }
+          throw;
+      }
       ASSERT_X(this->length_recv>=2, "Communication error, less than tow bytes received");
 
       this->length_recv -= 2;
@@ -532,6 +545,7 @@ namespace hw {
       #ifdef DEBUG_HWDEVICE
       this->controle_device = &hw::get_device("default");
       #endif
+      this->software_device = &hw::get_device("default");
       this->release();
       hw_device.init();      
       MDEBUG( "Device "<<this->id <<" HIDUSB inited");
@@ -551,15 +565,15 @@ namespace hw {
       cryptonote::account_public_address pubkey;
       this->get_public_address(pubkey);
       #endif
-      crypto::secret_key vkey;
-      crypto::secret_key skey;
-      this->get_secret_keys(vkey,skey);
-
       return true;
     }
 
     bool device_ledger::connected(void) const {
       return hw_device.connected();
+    }
+
+    bool device_ledger::disconnected() {
+        return hw_device.disconnected;
     }
 
     bool device_ledger::disconnect() {
@@ -623,20 +637,24 @@ namespace hw {
     bool  device_ledger::get_secret_keys(crypto::secret_key &vkey , crypto::secret_key &skey) {
         AUTO_LOCK_CMD();
 
-        //secret key are represented as fake key on the wallet side
+        //secret spend key is represented as fake key on the wallet side
         memset(vkey.data, 0x00, 32);
         memset(skey.data, 0xFF, 32);
 
         //spcialkey, normal conf handled in decrypt
+        if (m_callback) {
+            m_callback->on_button_request(0); // Notify GUI that user needs to press button on device
+        }
         send_simple(INS_GET_KEY, 0x02);
 
-        //View key is retrievied, if allowed, to speed up blockchain parsing
         memmove(this->viewkey.data,  this->buffer_recv+0,  32);
         if (is_fake_view_key(this->viewkey)) {
           MDEBUG("Have Not view key");
           this->has_view_key = false;
+          return false;
         } else {
           MDEBUG("Have view key");
+          memmove(vkey.data, this->viewkey.data, 32);
           this->has_view_key = true;
         }
       
@@ -649,12 +667,18 @@ namespace hw {
         return true;
     }
 
+    bool device_ledger::set_secret_view_key(const crypto::secret_key &vkey) {
+        this->viewkey = vkey;
+        this->has_view_key = true;
+        return true;
+    }
+
     bool  device_ledger::generate_chacha_key(const cryptonote::account_keys &keys, crypto::chacha_key &key, uint64_t kdf_rounds) {
         AUTO_LOCK_CMD();
 
         #ifdef DEBUG_HWDEVICE
         crypto::chacha_key key_x;
-        cryptonote::account_keys keys_x = hw::ledger::decrypt(keys); 
+        cryptonote::account_keys keys_x = hw::ledger::decrypt(keys);
         this->controle_device->generate_chacha_key(keys_x, key_x, kdf_rounds);
         #endif
 
@@ -697,7 +721,6 @@ namespace hw {
     /* ======================================================================= */
 
     bool device_ledger::derive_subaddress_public_key(const crypto::public_key &pub, const crypto::key_derivation &derivation, const std::size_t output_index, crypto::public_key &derived_pub){
-        AUTO_LOCK_CMD();
         #ifdef DEBUG_HWDEVICE
         const crypto::public_key pub_x = pub;
         crypto::key_derivation derivation_x;
@@ -718,10 +741,9 @@ namespace hw {
       if ((this->mode == TRANSACTION_PARSE) && has_view_key) {     
         //If we are in TRANSACTION_PARSE, the given derivation has been retrieved uncrypted (wihtout the help
         //of the device), so continue that way.
-        MDEBUG( "derive_subaddress_public_key  : PARSE mode with known viewkey");     
         crypto::derive_subaddress_public_key(pub, derivation, output_index,derived_pub);
       } else {
-       
+        AUTO_LOCK_CMD();
         int offset = set_command_header_noopt(INS_DERIVE_SUBADDRESS_PUBLIC_KEY);
         //pub
         memmove(this->buffer_send+offset, pub.data, 32);
@@ -750,6 +772,12 @@ namespace hw {
     }
 
     crypto::public_key device_ledger::get_subaddress_spend_public_key(const cryptonote::account_keys& keys, const cryptonote::subaddress_index &index) {
+        if (has_view_key) {
+            cryptonote::account_keys keys_x{keys};
+            keys_x.m_view_secret_key = this->viewkey;
+            return this->software_device->get_subaddress_spend_public_key(keys_x, index);
+        }
+
         AUTO_LOCK_CMD();
         crypto::public_key D;
 
@@ -801,6 +829,12 @@ namespace hw {
     }
 
     cryptonote::account_public_address device_ledger::get_subaddress(const cryptonote::account_keys& keys, const cryptonote::subaddress_index &index) {
+        if (has_view_key) {
+            cryptonote::account_keys keys_x{keys};
+            keys_x.m_view_secret_key = this->viewkey;
+            return this->software_device->get_subaddress(keys_x, index);
+        }
+
         AUTO_LOCK_CMD();
         cryptonote::account_public_address address;
 
@@ -1049,7 +1083,6 @@ namespace hw {
     }
 
     bool device_ledger::generate_key_derivation(const crypto::public_key &pub, const crypto::secret_key &sec, crypto::key_derivation &derivation) {
-        AUTO_LOCK_CMD();
         bool r = false;
 
         #ifdef DEBUG_HWDEVICE
@@ -1065,11 +1098,9 @@ namespace hw {
       if ((this->mode == TRANSACTION_PARSE)  && has_view_key) {
         //A derivation is resquested in PASRE mode and we have the view key,
         //so do that wihtout the device and return the derivation unencrypted.
-        MDEBUG( "generate_key_derivation  : PARSE mode with known viewkey");     
-        //Note derivation in PARSE mode can only happen with viewkey, so assert it!
-        assert(is_fake_view_key(sec));
         r = crypto::generate_key_derivation(pub, this->viewkey, derivation);
       } else {
+        AUTO_LOCK_CMD();
         int offset = set_command_header_noopt(INS_GEN_KEY_DERIVATION);
         //pub
         memmove(this->buffer_send+offset, pub.data, 32);
@@ -2277,7 +2308,9 @@ namespace hw {
 
     bool device_ledger::close_tx() {
         AUTO_LOCK_CMD();
-        send_simple(INS_CLOSE_TX);
+        if (!hw_device.disconnected) {
+            send_simple(INS_CLOSE_TX); // This can throw an exception if device is disconnected -> recursive mutex never gets unlocked
+        }
         key_map.clear();
         hmac_map.clear();
         this->tx_in_progress = false;

@@ -75,7 +75,6 @@ namespace hw {
     #define SW_SECURITY_OUTKEYS_CHAIN_CONTROL    0x6914
     #define SW_SECURITY_MAXOUTPUT_REACHED        0x6915
     #define SW_SECURITY_TRUSTED_INPUT            0x6916
-    #define SW_CLIENT_NOT_SUPPORTED              0x6930
     #define SW_SECURITY_STATUS_NOT_SATISFIED     0x6982
     #define SW_FILE_INVALID                      0x6983
     #define SW_PIN_BLOCKED                       0x6983
@@ -83,6 +82,7 @@ namespace hw {
     #define SW_CONDITIONS_NOT_SATISFIED          0x6985
     #define SW_COMMAND_NOT_ALLOWED               0x6986
     #define SW_APPLET_SELECT_FAILED              0x6999
+    #define SW_CLIENT_NOT_SUPPORTED              0x6a30
     #define SW_WRONG_DATA                        0x6a80
     #define SW_FUNC_NOT_SUPPORTED                0x6a81
     #define SW_FILE_NOT_FOUND                    0x6a82
@@ -158,6 +158,8 @@ namespace hw {
         mutable boost::recursive_mutex   device_locker;
         mutable boost::mutex   command_locker;
 
+        i_device_callback * m_callback;
+
         //IO
         hw::io::device_io_hid hw_device;
         unsigned int  length_send;
@@ -192,7 +194,9 @@ namespace hw {
         // To speed up blockchain parsing the view key maybe handle here.
         crypto::secret_key viewkey;
         bool has_view_key;
-        
+
+        device *software_device;
+
         //extra debug
         #ifdef DEBUG_HWDEVICE
         device *controle_device;
@@ -220,11 +224,16 @@ namespace hw {
         bool connect(void) override;
         bool disconnect() override;
         bool connected(void) const;
+        bool disconnected() override;
 
         bool set_mode(device_mode mode) override;
 
         device_type get_type() const override {return device_type::LEDGER;};
         device_protocol_t device_protocol() const override { return PROTOCOL_PROXY; };
+
+        void set_callback(i_device_callback * callback) override {
+            m_callback = callback;
+        }
 
         /* ======================================================================= */
         /*  LOCKER                                                                 */
@@ -238,6 +247,7 @@ namespace hw {
         /* ======================================================================= */
         bool  get_public_address(cryptonote::account_public_address &pubkey) override;
         bool  get_secret_keys(crypto::secret_key &viewkey , crypto::secret_key &spendkey) override;
+        bool  set_secret_view_key(const crypto::secret_key &viewkey) override;
         bool  generate_chacha_key(const cryptonote::account_keys &keys, crypto::chacha_key &key, uint64_t kdf_rounds) override;
         void  display_address(const cryptonote::subaddress_index& index, const boost::optional<crypto::hash8> &payment_id) override;
 

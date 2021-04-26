@@ -256,19 +256,18 @@ public:
     virtual bool isKeysFileLocked() override;
     virtual uint64_t coldKeyImageSync(uint64_t &spent, uint64_t &unspent) override;
     virtual void deviceShowAddress(uint32_t accountIndex, uint32_t addressIndex, const std::string &paymentId) override;
+    virtual bool reconnectDevice() override;
     virtual uint64_t getBytesReceived() override;
     virtual uint64_t getBytesSent() override;
-
+    virtual bool isDeviceConnected() override;
 
 private:
     void clearStatus() const;
     void setStatusError(const std::string& message) const;
     void setStatusCritical(const std::string& message) const;
     void setStatus(int status, const std::string& message) const;
-    void refreshThreadFunc();
-    void doRefresh();
+    bool doRefresh();
     bool daemonSynced() const;
-    void stopRefresh();
     bool isNewWallet() const;
     void pendingTxPostProcess(PendingTransactionImpl * pending);
 
@@ -315,6 +314,7 @@ private:
     std::atomic<bool>   m_recoveringFromDevice;
     std::atomic<bool>   m_synchronized;
     std::atomic<bool>   m_rebuildWalletCache;
+    std::atomic<bool>   m_deviceConnected;
     // cache connection status to avoid unnecessary RPC calls
     mutable std::atomic<bool>   m_is_connected;
     boost::optional<epee::net_utils::http::login> m_daemon_login{};
