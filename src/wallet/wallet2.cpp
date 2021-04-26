@@ -90,6 +90,7 @@ using namespace epee;
 #include "common/perf_timer.h"
 #include "ringct/rctSigs.h"
 #include "ringdb.h"
+#include "device/device_errors.hpp"
 #include "device/device_cold.hpp"
 #include "device_trezor/device_trezor.hpp"
 #include "net/socks_connect.h"
@@ -1129,6 +1130,12 @@ void wallet_device_callback::on_button_pressed()
     wallet->on_device_button_pressed();
 }
 
+void wallet_device_callback::on_error(const std::string &message)
+{
+  if (wallet)
+    wallet->on_device_error(message);
+}
+
 boost::optional<epee::wipeable_string> wallet_device_callback::on_pin_request()
 {
   if (wallet)
@@ -1489,12 +1496,19 @@ bool wallet2::reconnect_device()
 
   r = hwdev.connect();
   if (!r){
+    m_callback->on_device_error("Unable to reconnect to device");
     MERROR("Could not connect to the device");
     return false;
   }
 
   m_account.set_device(hwdev);
   return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool wallet2::device_connected()
+{
+    hw::device &hwdev = m_account.get_device();
+    return !hwdev.disconnected();
 }
 //----------------------------------------------------------------------------------------------------
 /*!
@@ -2786,6 +2800,9 @@ void wallet2::process_parsed_blocks(uint64_t start_height, const std::vector<cry
       continue;
     tpool.submit(&waiter, [&gender, &tx_cache_data, i]() {
       auto &slot = tx_cache_data[i];
+      // We don't need to lock here because we require the secret view key to be present.
+      // As such there is no device communication needed to scan the transaction for outputs
+      // boost::unique_lock<hw::device> hwdev_lock(hwdev);
       for (auto &iod: slot.primary)
         gender(iod);
       for (auto &iod: slot.additional)
@@ -3582,6 +3599,10 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
           start_height = stop_height;
           throw std::runtime_error(""); // loop again
         }
+        catch (const hw::error::device_disconnected &e)
+        {
+            throw;
+        }
         catch (const std::exception &e)
         {
           MERROR("Error parsing blocks: " << e.what());
@@ -3641,7 +3662,12 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
     }
     catch (const error::incorrect_fork_version&)
     {
-      THROW_WALLET_EXCEPTION_IF(!waiter.wait(), error::wallet_internal_error, "Exception in thread pool");
+        THROW_WALLET_EXCEPTION_IF(!waiter.wait(), error::wallet_internal_error, "Exception in thread pool");
+        throw;
+    }
+    catch (const hw::error::device_disconnected &e)
+    {
+      // Don't retry refresh
       throw;
     }
     catch (const std::exception&)
@@ -3952,6 +3978,9 @@ boost::optional<wallet2::keys_file_data> wallet2::get_keys_file_data(const epee:
   std::string multisig_signers;
   std::string multisig_derivations;
   cryptonote::account_base account = m_account;
+  if (m_key_device_type == hw::device::device_type::LEDGER) {
+    account.set_view_key(m_hw_view_key);
+  }
 
   crypto::chacha_key key;
   crypto::generate_chacha_key(password.data(), password.size(), key, m_kdf_rounds);
@@ -4589,6 +4618,22 @@ bool wallet2::load_keys_buf(const std::string& keys_buf, const epee::wipeable_st
     if (encrypted_secret_keys)
     {
       m_account.decrypt_keys(key);
+      if (m_key_device_type == hw::device::device_type::LEDGER) {
+        hw::device &hwdev = m_account.get_device();
+        // We can't keep the secret view key in m_account, device_ledger.cpp expects it to be null for some commands.
+        // It is reinserted into a copy of m_account before the wallet is stored.
+        if (m_account.get_keys().m_view_secret_key == crypto::null_skey) {
+          // Grab the view key if wallet file was created with different wallet
+          crypto::secret_key skey;
+          CHECK_AND_ASSERT_THROW_MES(hwdev.get_secret_keys(m_hw_view_key, skey), "Cannot get device secret");
+
+        }
+        else {
+          m_hw_view_key = m_account.get_keys().m_view_secret_key;
+          hwdev.set_secret_view_key(m_hw_view_key);
+        }
+        m_account.forget_view_key();
+      }
     }
     else
     {
@@ -5066,6 +5111,10 @@ void wallet2::restore(const std::string& wallet_, const epee::wipeable_string& p
   hwdev.set_callback(get_device_callback());
 
   m_account.create_from_device(hwdev);
+  if (m_account.get_device().get_type() == hw::device::device_type::LEDGER) {
+    m_hw_view_key = m_account.get_keys().m_view_secret_key;
+    m_account.forget_view_key();
+  }
   init_type(m_account.get_device().get_type());
   setup_keys(password);
   m_device_name = device_name;
@@ -14720,6 +14769,12 @@ void wallet2::on_device_button_pressed()
 {
   if (nullptr != m_callback)
     m_callback->on_device_button_pressed();
+}
+//----------------------------------------------------------------------------------------------------
+void wallet2::on_device_error(const std::string &message)
+{
+  if (nullptr != m_callback)
+    m_callback->on_device_error(message);
 }
 //----------------------------------------------------------------------------------------------------
 boost::optional<epee::wipeable_string> wallet2::on_device_pin_request()
