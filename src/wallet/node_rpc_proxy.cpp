@@ -149,15 +149,26 @@ boost::optional<std::string> NodeRPCProxy::get_info()
 
     {
       const boost::lock_guard<boost::recursive_mutex> lock{m_daemon_rpc_mutex};
-      uint64_t pre_call_credits = m_rpc_payment_state.credits;
-      req_t.client = cryptonote::make_rpc_payment_signature(m_client_id_secret_key);
-      bool r = net_utils::invoke_http_json_rpc("/json_rpc", "get_info", req_t, resp_t, m_http_client, rpc_timeout);
-      if (!r) {
-          m_get_info_time = 0; // Allow get_info to be called again before 30s cache
-          m_height = 0;
-          m_target_height = 0;
+        uint64_t pre_call_credits = m_rpc_payment_state.credits;
+        req_t.client = cryptonote::make_rpc_payment_signature(m_client_id_secret_key);
+
+      // Called often, fails often. Try twice to force reconnect.
+      int attempts = 2;
+      while (true) {
+          bool r = net_utils::invoke_http_json_rpc("/json_rpc", "get_info", req_t, resp_t, m_http_client, rpc_timeout);
+          if (r) {
+              break;
+          }
+
+          attempts--;
+          if (attempts <= 0) {
+              m_get_info_time = 0; // Allow get_info to be called again before 30s cache
+              m_height = 0;
+              m_target_height = 0;
+              RETURN_ON_RPC_RESPONSE_ERROR(r, epee::json_rpc::error{}, resp_t, "get_info");
+          }
       }
-      RETURN_ON_RPC_RESPONSE_ERROR(r, epee::json_rpc::error{}, resp_t, "get_info");
+
       check_rpc_cost(m_rpc_payment_state, "get_info", resp_t.credits, pre_call_credits, COST_PER_GET_INFO);
     }
 
