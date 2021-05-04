@@ -1842,8 +1842,6 @@ PendingTransaction *WalletImpl::createTransactionSingle(const string &key_image,
 
     cryptonote::address_parse_info info;
 
-    size_t fake_outs_count = m_wallet->adjust_mixin(m_wallet->default_mixin());
-
     uint32_t adjusted_priority = m_wallet->adjust_priority(static_cast<uint32_t>(priority));
 
     PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
@@ -1885,6 +1883,8 @@ PendingTransaction *WalletImpl::createTransactionSingle(const string &key_image,
             break;
         }
         try {
+            size_t fake_outs_count = m_wallet->adjust_mixin(m_wallet->default_mixin()); // can trigger rpc request, may throw
+
             transaction->m_pending_tx = m_wallet->create_transactions_single(ki, info.address, info.is_subaddress,
                     outputs, fake_outs_count, 0 /* unlock time */, priority, extra);
 
