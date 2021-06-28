@@ -1854,7 +1854,13 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
     return createTransactionMultDest(std::vector<string> {dst_addr}, payment_id, amount ? (std::vector<uint64_t> {*amount}) : (optional<std::vector<uint64_t>>()), mixin_count, priority, subaddr_account, subaddr_indices);
 }
 
-PendingTransaction *WalletImpl::createTransactionSingle(const string &key_image, const string &dst_addr,
+PendingTransaction *WalletImpl::createTransactionSingle(const std::string &key_image, const std::string &dst_addr,
+                                                         size_t outputs, PendingTransaction::Priority priority)
+{
+    return createTransactionSelected({key_image}, dst_addr, outputs, priority);
+}
+
+PendingTransaction *WalletImpl::createTransactionSelected(const std::vector<std::string> &key_images, const string &dst_addr,
                                                         const size_t outputs, PendingTransaction::Priority priority)
 {
     clearStatus();
@@ -1872,11 +1878,18 @@ PendingTransaction *WalletImpl::createTransactionSingle(const string &key_image,
 
         bool error = false;
 
-        crypto::key_image ki;
-        if (!epee::string_tools::hex_to_pod(key_image, ki))
-        {
-            setStatusError(tr("failed to parse key image"));
-            error = true;
+        std::vector<crypto::key_image> kis;
+        for (const auto &key_image : key_images) {
+            crypto::key_image ki;
+            if (!epee::string_tools::hex_to_pod(key_image, ki))
+            {
+                setStatusError(tr("failed to parse key image"));
+                error = true;
+                break;
+            }
+            kis.push_back(ki);
+        }
+        if (error) {
             break;
         }
 
@@ -1904,7 +1917,7 @@ PendingTransaction *WalletImpl::createTransactionSingle(const string &key_image,
         try {
             size_t fake_outs_count = m_wallet->adjust_mixin(m_wallet->default_mixin()); // can trigger rpc request, may throw
 
-            transaction->m_pending_tx = m_wallet->create_transactions_single(ki, info.address, info.is_subaddress,
+            transaction->m_pending_tx = m_wallet->create_transactions_selected(kis, info.address, info.is_subaddress,
                     outputs, fake_outs_count, 0 /* unlock time */, priority, extra);
 
             pendingTxPostProcess(transaction);
