@@ -176,6 +176,8 @@ public:
 
     PendingTransaction * createTransactionSingle(const std::string &key_image, const std::string &dst_addr,
             size_t outputs = 1, PendingTransaction::Priority priority = PendingTransaction::Priority_Low) override;
+    PendingTransaction * createTransactionSelected(const std::vector<std::string> &key_images, const std::string &dst_addr,
+            size_t outputs = 1, PendingTransaction::Priority priority = PendingTransaction::Priority_Low) override;
 
     virtual PendingTransaction * createSweepUnmixableTransaction() override;
     bool submitTransaction(const std::string &fileName) override;
