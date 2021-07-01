@@ -23,6 +23,8 @@ public:
 
     bool isTransferUnlocked(uint64_t unlockTime, uint64_t blockHeight) override;
 
+    void setDescription(int index, const std::string &description) override;
+
 private:
     WalletImpl *m_wallet;
     std::vector<CoinsInfo*> m_rows;

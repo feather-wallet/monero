@@ -340,6 +340,7 @@ struct CoinsInfo
     virtual bool unlocked() const = 0;
     virtual std::string pubKey() const = 0;
     virtual bool coinbase() const = 0;
+    virtual std::string description() const = 0;
 };
 
 struct Coins
@@ -352,6 +353,7 @@ struct Coins
     virtual void setFrozen(int index) = 0;
     virtual void thaw(int index) = 0;
     virtual bool isTransferUnlocked(uint64_t unlockTime, uint64_t blockHeight) = 0;
+    virtual void setDescription(int index, const std::string &description) = 0;
 };
 
 struct SubaddressRow {
