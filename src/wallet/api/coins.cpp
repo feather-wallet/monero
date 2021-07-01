@@ -84,6 +84,7 @@ void CoinsImpl::refresh()
         ci->m_unlocked = m_wallet->m_wallet->is_transfer_unlocked(td);
         ci->m_pubKey = string_tools::pod_to_hex(td.get_public_key());
         ci->m_coinbase = td.m_tx.vin.size() == 1 && td.m_tx.vin[0].type() == typeid(cryptonote::txin_gen);
+        ci->m_description = m_wallet->m_wallet->get_tx_note(td.m_txid);
 
         m_rows.push_back(ci);
     }
@@ -117,6 +118,20 @@ void CoinsImpl::thaw(int index)
 
 bool CoinsImpl::isTransferUnlocked(uint64_t unlockTime, uint64_t blockHeight) {
     return m_wallet->m_wallet->is_transfer_unlocked(unlockTime, blockHeight);
+}
+
+void CoinsImpl::setDescription(int index, const std::string &description)
+{
+    try
+    {
+        const tools::wallet2::transfer_details &td = m_wallet->m_wallet->get_transfer_details(index);
+        m_wallet->m_wallet->set_tx_note(td.m_txid, description);
+        refresh();
+    }
+    catch (const std::exception& e)
+    {
+        LOG_ERROR("setDescription: " << e.what());
+    }
 }
 
 } // namespace
