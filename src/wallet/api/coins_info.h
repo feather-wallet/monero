@@ -35,6 +35,7 @@ public:
     virtual bool unlocked() const override;
     virtual std::string pubKey() const override;
     virtual bool coinbase() const override;
+    virtual std::string description() const override;
 
 private:
     uint64_t    m_blockHeight;
@@ -57,6 +58,7 @@ private:
     bool        m_unlocked;
     std::string m_pubKey;
     bool        m_coinbase;
+    std::string m_description;
 
     friend class CoinsImpl;
 
