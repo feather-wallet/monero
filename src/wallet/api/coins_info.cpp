@@ -113,6 +113,10 @@ string CoinsInfoImpl::pubKey() const {
 bool CoinsInfoImpl::coinbase() const {
     return m_coinbase;
 }
+
+string CoinsInfoImpl::description() const {
+    return m_description;
+}
 } // namespace
 
 namespace Bitmonero = Monero;
