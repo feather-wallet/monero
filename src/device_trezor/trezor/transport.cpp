@@ -1125,7 +1125,11 @@ namespace trezor{
 
     int transferred = 0;
     int r = libusb_interrupt_transfer(m_usb_device_handle, endpoint, (unsigned char*)buff, (int)size, &transferred, 0);
-    CHECK_AND_ASSERT_THROW_MES(r == 0, "Unable to transfer, r: " << r);
+
+    if (r != 0) {
+        throw exc::CommunicationException("Unable to transfer, r: " + std::to_string(r));
+    }
+
     if (transferred != (int)size){
       throw exc::CommunicationException("Could not transfer chunk");
     }
