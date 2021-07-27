@@ -203,6 +203,11 @@ private:
     void clear() { m_start_height = 0, m_offsets.clear(); }
     std::vector<uint64_t>& offsets() {return m_offsets;}
 
+    BEGIN_SERIALIZE_OBJECT()
+      VARINT_FIELD(m_start_height)
+      FIELD(m_offsets)
+    END_SERIALIZE()
+
   private:
     size_t m_start_height;
     std::vector<uint64_t> m_offsets;
@@ -1666,6 +1671,7 @@ private:
       boost::shared_mutex m_transfers_mutex;
 
     bool cache_rct_distribution(uint64_t from_height);
+    void check_rct_distribution();
 
   private:
     /*!
