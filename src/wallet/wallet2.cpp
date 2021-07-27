@@ -155,6 +155,10 @@ using namespace cryptonote;
 #define DEFAULT_UNLOCK_TIME (CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE * DIFFICULTY_TARGET_V2)
 #define RECENT_SPEND_WINDOW (15 * DIFFICULTY_TARGET_V2)
 
+#define OUTPUT_DISTRIBUTION_CHECKPOINT_HEIGHT 2414180
+#define OUTPUT_DISTRIBUTION_CHECKPOINT_HASH "063e190b5230a11f33d7b448f218bd15bc578a8ec4f0f0875229f96283f61b44"
+#define OUTPUT_DISTRIBUTION_MAX_OUTPUT_SUM 100000000
+
 static const std::string MULTISIG_SIGNATURE_MAGIC = "SigMultisigPkV1";
 
 static const std::string ASCII_OUTPUT_MAGIC = "MoneroAsciiDataV1";
@@ -4316,6 +4320,37 @@ bool wallet2::cache_rct_distribution(uint64_t from_height)
 
   return true;
 }
+
+void wallet2::check_rct_distribution() {
+    crypto::hash checkpoint_hash;
+    bool r = epee::string_tools::hex_to_pod(OUTPUT_DISTRIBUTION_CHECKPOINT_HASH, checkpoint_hash);
+    THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "Invalid output distribution checkpoint hash");
+
+    THROW_WALLET_EXCEPTION_IF(m_rct_offsets.size() < OUTPUT_DISTRIBUTION_CHECKPOINT_HEIGHT, error::wallet_internal_error, "Output distribution size too small");
+    THROW_WALLET_EXCEPTION_IF(m_rct_offsets.size() > (m_blockchain.size() + 10), error::wallet_internal_error, "Output distribution size too big");
+
+    // Create a new rct_offsets object with distribution up to checkpoint height
+    std::vector<uint64_t> rct_offsets_slice;
+    rct_offsets_slice.reserve(OUTPUT_DISTRIBUTION_CHECKPOINT_HEIGHT);
+    for (size_t i = m_rct_offsets.start_height(); i < OUTPUT_DISTRIBUTION_CHECKPOINT_HEIGHT; i++) {
+        rct_offsets_slice.push_back(m_rct_offsets[i]);
+    }
+    rct_offsets rct_offsets_to_hash;
+    rct_offsets_to_hash.init(m_rct_offsets.start_height(), rct_offsets_slice);
+
+    blobdata rct_offsets_blob = t_serializable_object_to_blob(rct_offsets_to_hash);
+    crypto::hash offsets_hash;
+    bool hash_result = get_object_hash(rct_offsets_blob, offsets_hash);
+
+    THROW_WALLET_EXCEPTION_IF(!hash_result, error::wallet_internal_error, "Unable to hash output distribution");
+    THROW_WALLET_EXCEPTION_IF(offsets_hash != checkpoint_hash, error::wallet_internal_error, "Output distribution hash does not match checkpoint hash. "
+                                                                                             "Offset hash: " + epee::string_tools::pod_to_hex(offsets_hash) +
+                                                                                             ", Checkpoint hash: " + epee::string_tools::pod_to_hex(checkpoint_hash));
+
+    // sanity check
+    THROW_WALLET_EXCEPTION_IF(m_rct_offsets.offsets().back() >= OUTPUT_DISTRIBUTION_MAX_OUTPUT_SUM, error::wallet_internal_error, "Unrealistic number of outputs in output distribution");
+}
+
 //----------------------------------------------------------------------------------------------------
 wallet2::detached_blockchain_data wallet2::detach_blockchain(uint64_t height, std::map<std::pair<uint64_t, uint64_t>, size_t> *output_tracker_cache)
 {
@@ -9290,9 +9325,10 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
     COMMAND_RPC_GET_OUTPUTS_BIN::response daemon_resp = AUTO_VAL_INIT(daemon_resp);
 
     std::unique_ptr<gamma_picker> gamma;
-    if (has_rct)
+    if (has_rct) {
+      check_rct_distribution();
       gamma.reset(new gamma_picker(m_rct_offsets.offsets()));
-
+    }
     size_t num_selected_transfers = 0;
     req.outputs.reserve(selected_transfers.size() * (base_requested_outputs_count + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW));
     daemon_resp.outs.reserve(selected_transfers.size() * (base_requested_outputs_count + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW));
