@@ -47,7 +47,6 @@ public:
     bool addRow(const std::string &dst_addr , const std::string &payment_id, const std::string &description) override;
     bool setDescription(std::size_t index, const std::string &description) override;
     bool deleteRow(std::size_t rowId) override;
-    bool setDescription(std::size_t index, const std::string &description) override;
      
     // Error codes. See AddressBook:ErrorCode enum in wallet2_api.h
     std::string errorString() const override {return m_errorString;}
