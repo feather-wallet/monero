@@ -208,6 +208,8 @@ public:
     virtual std::string printAddressBook() override;
     virtual std::string printScannedPoolTxs() override;
 
+    virtual bool haveTransaction(const std::string &txid);
+
     virtual void disposeTransaction(PendingTransaction * t) override;
     virtual uint64_t estimateTransactionFee(const std::vector<std::pair<std::string, uint64_t>> &destinations,
                                             PendingTransaction::Priority priority) const override;
