@@ -1637,6 +1637,18 @@ std::string WalletImpl::printScannedPoolTxs()
     return m_wallet->printScannedPoolTxs();
 }
 
+bool WalletImpl::haveTransaction(const std::string &txid)
+{
+    crypto::hash txid_;
+    if(!epee::string_tools::hex_to_pod(txid, txid_))
+    {
+        setStatusError(tr("Failed to parse txid"));
+        return false;
+    }
+
+    return m_wallet->have_tx(txid_);
+}
+
 void WalletImpl::addSubaddressAccount(const std::string& label)
 {
     if (checkBackgroundSync("cannot add account"))
