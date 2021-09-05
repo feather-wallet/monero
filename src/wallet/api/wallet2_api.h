@@ -1110,6 +1110,13 @@ struct Wallet
     virtual std::string printAddressBook() = 0;
     virtual std::string printScannedPoolTxs() = 0;
 
+    /*!
+     * \brief haveTranscation - check if transaction is known to wallet
+     * @param txid
+     * @return - true if known
+     */
+    virtual bool haveTransaction(const std::string &txid) = 0;
+
     virtual TransactionHistory * history() = 0;
     virtual AddressBook * addressBook() = 0;
     virtual Coins * coins() = 0;

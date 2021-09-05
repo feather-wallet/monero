@@ -6941,6 +6941,31 @@ crypto::hash wallet2::get_payment_id(const pending_tx &ptx) const
   return payment_id;
 }
 
+bool wallet2::have_tx(crypto::hash txid)
+{
+    for (const auto &tx : m_payments) {
+        if (tx.second.m_tx_hash == txid) {
+            return true;
+        }
+    }
+    for (const auto &tx : m_unconfirmed_payments) {
+        if (tx.second.m_pd.m_tx_hash == txid) {
+            return true;
+        }
+    }
+    for (const auto &tx : m_unconfirmed_txs) {
+        if (tx.first == txid) {
+            return true;
+        }
+    }
+    for (const auto &tx : m_confirmed_txs) {
+        if (tx.first == txid) {
+            return true;
+        }
+    }
+    return false;
+}
+
 //----------------------------------------------------------------------------------------------------
 // take a pending tx and actually send it to the daemon
 void wallet2::commit_tx(pending_tx& ptx)
