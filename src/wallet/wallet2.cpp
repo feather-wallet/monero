@@ -3202,33 +3202,36 @@ void wallet2::update_pool_state(std::vector<std::tuple<cryptonote::transaction, 
     }
   }
 
-  // get those txes
-  if (!txids.empty())
+  // get_transaction_pool_hashes.bin may return more transactions than we're allowed to request in restricted mode
+  for (size_t offset = 0; offset < txids.size(); offset += RESTRICTED_TRANSACTIONS_COUNT)
   {
-    cryptonote::COMMAND_RPC_GET_TRANSACTIONS::request req;
-    cryptonote::COMMAND_RPC_GET_TRANSACTIONS::response res;
-    for (const auto &p: txids)
-      req.txs_hashes.push_back(epee::string_tools::pod_to_hex(p.first));
-    MDEBUG("asking for " << txids.size() << " transactions");
-    req.decode_as_json = false;
-    req.prune = true;
+    cryptonote::COMMAND_RPC_GET_TRANSACTIONS::request chunk_req;
+    cryptonote::COMMAND_RPC_GET_TRANSACTIONS::response chunk_res;
+
+    const size_t n_txids = std::min<size_t>(RESTRICTED_TRANSACTIONS_COUNT, txids.size() - offset);
+    for (size_t n = offset; n < (offset + n_txids); ++n) {
+      chunk_req.txs_hashes.push_back(epee::string_tools::pod_to_hex(txids.at(n).first));
+    }
+    MDEBUG("asking for " << chunk_req.txs_hashes.size() << " transactions");
+    chunk_req.decode_as_json = false;
+    chunk_req.prune = true;
 
     bool r;
     {
       const boost::lock_guard<boost::recursive_mutex> lock{m_daemon_rpc_mutex};
       uint64_t pre_call_credits = m_rpc_payment_state.credits;
-      req.client = get_client_signature();
-      r = epee::net_utils::invoke_http_json("/gettransactions", req, res, *m_http_client, rpc_timeout);
-      if (r && res.status == CORE_RPC_STATUS_OK)
-        check_rpc_cost("/gettransactions", res.credits, pre_call_credits, res.txs.size() * COST_PER_TX);
+      chunk_req.client = get_client_signature();
+      r = epee::net_utils::invoke_http_json("/gettransactions", chunk_req, chunk_res, *m_http_client, rpc_timeout);
+      if (r && chunk_res.status == CORE_RPC_STATUS_OK)
+        check_rpc_cost("/gettransactions", chunk_res.credits, pre_call_credits, chunk_res.txs.size() * COST_PER_TX);
     }
 
-    MDEBUG("Got " << r << " and " << res.status);
-    if (r && res.status == CORE_RPC_STATUS_OK)
+    MDEBUG("Got " << r << " and " << chunk_res.status);
+    if (r && chunk_res.status == CORE_RPC_STATUS_OK)
     {
-      if (res.txs.size() == txids.size())
+      if (chunk_res.txs.size() == txids.size())
       {
-        for (const auto &tx_entry: res.txs)
+        for (const auto &tx_entry: chunk_res.txs)
         {
           if (tx_entry.in_pool)
           {
@@ -3238,16 +3241,16 @@ void wallet2::update_pool_state(std::vector<std::tuple<cryptonote::transaction, 
 
             if (get_pruned_tx(tx_entry, tx, tx_hash))
             {
-                const std::vector<std::pair<crypto::hash, bool>>::const_iterator i = std::find_if(txids.begin(), txids.end(),
-                    [tx_hash](const std::pair<crypto::hash, bool> &e) { return e.first == tx_hash; });
-                if (i != txids.end())
-                {
-                  process_txs.push_back(std::make_tuple(tx, tx_hash, tx_entry.double_spend_seen));
-                }
-                else
-                {
-                  MERROR("Got txid " << tx_hash << " which we did not ask for");
-                }
+              const std::vector<std::pair<crypto::hash, bool>>::const_iterator i = std::find_if(txids.begin(), txids.end(),
+                  [tx_hash](const std::pair<crypto::hash, bool> &e) { return e.first == tx_hash; });
+              if (i != txids.end())
+              {
+                process_txs.push_back(std::make_tuple(tx, tx_hash, tx_entry.double_spend_seen));
+              }
+              else
+              {
+                MERROR("Got txid " << tx_hash << " which we did not ask for");
+              }
             }
             else
             {
@@ -3262,14 +3265,15 @@ void wallet2::update_pool_state(std::vector<std::tuple<cryptonote::transaction, 
       }
       else
       {
-        LOG_PRINT_L0("Expected " << txids.size() << " tx(es), got " << res.txs.size());
+        LOG_PRINT_L0("Expected " << txids.size() << " tx(es), got " << chunk_res.txs.size());
       }
     }
     else
     {
-      LOG_PRINT_L0("Error calling gettransactions daemon RPC: r " << r << ", status " << get_rpc_status(res.status));
+      LOG_PRINT_L0("Error calling gettransactions daemon RPC: r " << r << ", status " << get_rpc_status(chunk_res.status));
     }
   }
+
   MTRACE("update_pool_state end");
 }
 //----------------------------------------------------------------------------------------------------
