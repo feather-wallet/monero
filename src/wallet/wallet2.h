@@ -1715,7 +1715,9 @@ private:
     void freeze(size_t idx);
     void thaw(size_t idx);
     bool frozen(size_t idx) const;
+    void freeze(const crypto::public_key &pk);
     void freeze(const crypto::key_image &ki);
+    void thaw(const crypto::public_key &pk);
     void thaw(const crypto::key_image &ki);
     bool frozen(const crypto::key_image &ki) const;
     bool frozen(const transfer_details &td) const;
@@ -1864,6 +1866,7 @@ private:
     tx_entry_data get_tx_entries(const std::unordered_set<crypto::hash> &txids);
     void sort_scan_tx_entries(std::vector<process_tx_entry_t> &unsorted_tx_entries);
     void process_scan_txs(const tx_entry_data &txs_to_scan, const tx_entry_data &txs_to_reprocess, const std::unordered_set<crypto::hash> &tx_hashes_to_reprocess, detached_blockchain_data &dbd);
+    size_t get_transfer_details(const crypto::public_key &pk) const;
 
     void register_devices();
     hw::device& lookup_device(const std::string & device_descriptor);
