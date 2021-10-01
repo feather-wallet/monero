@@ -90,6 +90,26 @@ void CoinsImpl::refresh()
     }
 }
 
+void CoinsImpl::setFrozen(std::string public_key)
+{
+    crypto::public_key pk;
+    if (!epee::string_tools::hex_to_pod(public_key, pk))
+    {
+        LOG_ERROR("Invalid public key: " << public_key);
+        return;
+    }
+
+    try
+    {
+        m_wallet->m_wallet->freeze(pk);
+        refresh();
+    }
+    catch (const std::exception& e)
+    {
+        LOG_ERROR("setFrozen: " << e.what());
+    }
+}
+
 void CoinsImpl::setFrozen(int index)
 {
     try
@@ -100,6 +120,26 @@ void CoinsImpl::setFrozen(int index)
     catch (const std::exception& e)
     {
         LOG_ERROR("setLabel: " << e.what());
+    }
+}
+
+void CoinsImpl::thaw(std::string public_key)
+{
+    crypto::public_key pk;
+    if (!epee::string_tools::hex_to_pod(public_key, pk))
+    {
+        LOG_ERROR("Invalid public key: " << public_key);
+        return;
+    }
+
+    try
+    {
+        m_wallet->m_wallet->thaw(pk);
+        refresh();
+    }
+    catch (const std::exception& e)
+    {
+        LOG_ERROR("thaw: " << e.what());
     }
 }
 
