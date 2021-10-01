@@ -2053,39 +2053,46 @@ bool wallet2::frozen(size_t idx) const
   return td.m_frozen;
 }
 //----------------------------------------------------------------------------------------------------
-bool wallet2::frozen(const multisig_tx_set& txs) const
+bool wallet2::frozen(const multisig_tx_set& txs) const {
+      // Each call to frozen(const key_image&) is O(N), so if we didn't use batching like we did here,
+      // this op would be O(M * N) instead of O(M + N). N = # wallet transfers, M = # key images in set.
+      // Step 1. Collect all key images from all pending txs into set
+      std::unordered_set<crypto::key_image> kis_to_sign;
+      for (const auto &ptx: txs.m_ptx) {
+        const tools::wallet2::tx_construction_data &cd = ptx.construction_data;
+        CHECK_AND_ASSERT_THROW_MES(cd.sources.size() == ptx.tx.vin.size(), "mismatched multisg tx set source sizes");
+        for (size_t src_idx = 0; src_idx < cd.sources.size(); ++src_idx) {
+          // Extract keys images from tx vin and construction data
+          const crypto::key_image multisig_ki = rct::rct2ki(cd.sources[src_idx].multisig_kLRki.ki);
+          CHECK_AND_ASSERT_THROW_MES(ptx.tx.vin[src_idx].type() == typeid(cryptonote::txin_to_key),
+                                     "multisig tx cannot be miner");
+          const crypto::key_image &vin_ki = boost::get<cryptonote::txin_to_key>(ptx.tx.vin[src_idx]).k_image;
+
+          // Add key images to set (there will be some overlap)
+          kis_to_sign.insert(multisig_ki);
+          kis_to_sign.insert(vin_ki);
+        }
+      }
+      // Step 2. Scan all transfers for frozen key images
+      for (const auto &td: m_transfers)
+        if (td.m_frozen && kis_to_sign.count(td.m_key_image))
+          return true;
+
+      return false;
+}
+void wallet2::freeze(const crypto::public_key &pk)
 {
-  // Each call to frozen(const key_image&) is O(N), so if we didn't use batching like we did here,
-  // this op would be O(M * N) instead of O(M + N). N = # wallet transfers, M = # key images in set.
-  // Step 1. Collect all key images from all pending txs into set
-  std::unordered_set<crypto::key_image> kis_to_sign;
-  for (const auto& ptx : txs.m_ptx)
-  {
-    const tools::wallet2::tx_construction_data& cd = ptx.construction_data;
-    CHECK_AND_ASSERT_THROW_MES(cd.sources.size() == ptx.tx.vin.size(), "mismatched multisg tx set source sizes");
-    for (size_t src_idx = 0; src_idx < cd.sources.size(); ++src_idx)
-    {
-      // Extract keys images from tx vin and construction data
-      const crypto::key_image multisig_ki = rct::rct2ki(cd.sources[src_idx].multisig_kLRki.ki);
-      CHECK_AND_ASSERT_THROW_MES(ptx.tx.vin[src_idx].type() == typeid(cryptonote::txin_to_key), "multisig tx cannot be miner");
-      const crypto::key_image& vin_ki = boost::get<cryptonote::txin_to_key>(ptx.tx.vin[src_idx]).k_image;
-
-      // Add key images to set (there will be some overlap)
-      kis_to_sign.insert(multisig_ki);
-      kis_to_sign.insert(vin_ki);
-    }
-  }
-  // Step 2. Scan all transfers for frozen key images
-  for (const auto& td : m_transfers)
-    if (td.m_frozen && kis_to_sign.count(td.m_key_image))
-      return true;
-
-  return false;
+  freeze(get_transfer_details(pk));
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::freeze(const crypto::key_image &ki)
 {
   freeze(get_transfer_details(ki));
+}
+//----------------------------------------------------------------------------------------------------
+void wallet2::thaw(const crypto::public_key &pk)
+{
+    thaw(get_transfer_details(pk));
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::thaw(const crypto::key_image &ki)
@@ -2112,6 +2119,18 @@ size_t wallet2::get_transfer_details(const crypto::key_image &ki) const
     }
   }
   CHECK_AND_ASSERT_THROW_MES(false, "Key image not found");
+}
+//----------------------------------------------------------------------------------------------------
+size_t wallet2::get_transfer_details(const crypto::public_key &pk) const
+{
+    for (size_t idx = 0; idx < m_transfers.size(); ++idx)
+    {
+        const transfer_details &td = m_transfers[idx];
+        if (td.get_public_key() == pk) {
+            return idx;
+        }
+    }
+    CHECK_AND_ASSERT_THROW_MES(false, "Public key not found");
 }
 //----------------------------------------------------------------------------------------------------
 bool wallet2::frozen(const transfer_details &td) const
