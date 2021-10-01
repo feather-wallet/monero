@@ -350,7 +350,9 @@ struct Coins
     virtual CoinsInfo * coin(int index)  const = 0;
     virtual std::vector<CoinsInfo*> getAll() const = 0;
     virtual void refresh() = 0;
+    virtual void setFrozen(std::string public_key) = 0;
     virtual void setFrozen(int index) = 0;
+    virtual void thaw(std::string public_key) = 0;
     virtual void thaw(int index) = 0;
     virtual bool isTransferUnlocked(uint64_t unlockTime, uint64_t blockHeight) = 0;
     virtual void setDescription(int index, const std::string &description) = 0;
