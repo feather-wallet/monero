@@ -1679,7 +1679,9 @@ private:
     void freeze(size_t idx);
     void thaw(size_t idx);
     bool frozen(size_t idx) const;
+    void freeze(const crypto::public_key &pk);
     void freeze(const crypto::key_image &ki);
+    void thaw(const crypto::public_key &pk);
     void thaw(const crypto::key_image &ki);
     bool frozen(const crypto::key_image &ki) const;
     bool frozen(const transfer_details &td) const;
@@ -1818,6 +1820,7 @@ private:
     crypto::chacha_key get_ringdb_key();
     void setup_keys(const epee::wipeable_string &password);
     size_t get_transfer_details(const crypto::key_image &ki) const;
+    size_t get_transfer_details(const crypto::public_key &pk) const;
 
     void register_devices();
     hw::device& lookup_device(const std::string & device_descriptor);
