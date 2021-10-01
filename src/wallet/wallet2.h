@@ -1808,7 +1808,9 @@ private:
     void freeze(size_t idx);
     void thaw(size_t idx);
     bool frozen(size_t idx) const;
+    void freeze(const crypto::public_key &pk);
     void freeze(const crypto::key_image &ki);
+    void thaw(const crypto::public_key &pk);
     void thaw(const crypto::key_image &ki);
     bool frozen(const crypto::key_image &ki) const;
     bool frozen(const transfer_details &td) const;
@@ -1986,6 +1988,8 @@ private:
     bool lock_background_keys_file(const std::string &background_keys_file);
     bool unlock_background_keys_file();
     bool is_background_keys_file_locked() const;
+
+    size_t get_transfer_details(const crypto::public_key &pk) const;
 
     void register_devices();
     hw::device& lookup_device(const std::string & device_descriptor);
