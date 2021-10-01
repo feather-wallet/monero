@@ -18,7 +18,9 @@ public:
     std::vector<CoinsInfo*> getAll() const override;
     void refresh() override;
 
+    void setFrozen(std::string public_key) override;
     void setFrozen(int index) override;
+    void thaw(std::string public_key) override;
     void thaw(int index) override;
 
     bool isTransferUnlocked(uint64_t unlockTime, uint64_t blockHeight) override;
