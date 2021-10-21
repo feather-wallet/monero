@@ -3251,7 +3251,7 @@ void wallet2::update_pool_state(std::vector<std::tuple<cryptonote::transaction, 
     MDEBUG("Got " << r << " and " << chunk_res.status);
     if (r && chunk_res.status == CORE_RPC_STATUS_OK)
     {
-      if (chunk_res.txs.size() == txids.size())
+      if (chunk_res.txs.size() == chunk_req.txs_hashes.size())
       {
         for (const auto &tx_entry: chunk_res.txs)
         {
@@ -3287,7 +3287,7 @@ void wallet2::update_pool_state(std::vector<std::tuple<cryptonote::transaction, 
       }
       else
       {
-        LOG_PRINT_L0("Expected " << txids.size() << " tx(es), got " << chunk_res.txs.size());
+        LOG_PRINT_L0("Expected " << chunk_req.txs_hashes.size() << " tx(es), got " << chunk_res.txs.size());
       }
     }
     else
