@@ -160,10 +160,18 @@ bool CoinsImpl::isTransferUnlocked(uint64_t unlockTime, uint64_t blockHeight) {
     return m_wallet->m_wallet->is_transfer_unlocked(unlockTime, blockHeight);
 }
 
-void CoinsImpl::setDescription(int index, const std::string &description)
+void CoinsImpl::setDescription(const std::string &public_key, const std::string &description)
 {
+    crypto::public_key pk;
+    if (!epee::string_tools::hex_to_pod(public_key, pk))
+    {
+        LOG_ERROR("Invalid public key: " << public_key);
+        return;
+    }
+
     try
     {
+        const size_t index = m_wallet->m_wallet->get_transfer_details(pk);
         const tools::wallet2::transfer_details &td = m_wallet->m_wallet->get_transfer_details(index);
         m_wallet->m_wallet->set_tx_note(td.m_txid, description);
         refresh();
