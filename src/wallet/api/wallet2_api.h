@@ -356,7 +356,7 @@ struct Coins
     virtual void thaw(std::string public_key) = 0;
     virtual void thaw(int index) = 0;
     virtual bool isTransferUnlocked(uint64_t unlockTime, uint64_t blockHeight) = 0;
-    virtual void setDescription(int index, const std::string &description) = 0;
+    virtual void setDescription(const std::string &public_key, const std::string &description) = 0;
 };
 
 struct SubaddressRow {
