@@ -1592,6 +1592,7 @@ private:
     uint64_t get_num_rct_outputs();
     size_t get_num_transfer_details() const { return m_transfers.size(); }
     const transfer_details &get_transfer_details(size_t idx) const;
+    size_t get_transfer_details(const crypto::public_key &pk) const;
 
     uint8_t get_current_hard_fork();
     void get_hard_fork_info(uint8_t version, uint64_t &earliest_height);
@@ -2003,8 +2004,6 @@ private:
     bool lock_background_keys_file(const std::string &background_keys_file);
     bool unlock_background_keys_file();
     bool is_background_keys_file_locked() const;
-
-    size_t get_transfer_details(const crypto::public_key &pk) const;
 
     void register_devices();
     hw::device& lookup_device(const std::string & device_descriptor);
