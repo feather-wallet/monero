@@ -1385,6 +1385,7 @@ private:
     uint64_t get_num_rct_outputs();
     size_t get_num_transfer_details() const { return m_transfers.size(); }
     const transfer_details &get_transfer_details(size_t idx) const;
+    size_t get_transfer_details(const crypto::public_key &pk) const;
 
     uint8_t get_current_hard_fork();
     void get_hard_fork_info(uint8_t version, uint64_t &earliest_height);
@@ -1756,7 +1757,6 @@ private:
     crypto::chacha_key get_ringdb_key();
     void setup_keys(const epee::wipeable_string &password);
     size_t get_transfer_details(const crypto::key_image &ki) const;
-    size_t get_transfer_details(const crypto::public_key &pk) const;
 
     void register_devices();
     hw::device& lookup_device(const std::string & device_descriptor);
