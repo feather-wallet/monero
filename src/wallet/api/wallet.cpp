@@ -2590,7 +2590,6 @@ bool WalletImpl::doRefresh()
         if (m_history->count() == 0) {
             m_history->refresh();
         }
-        m_wallet->find_and_save_rings(false);
 
     } catch (const std::exception &e) {
         LOG_ERROR(__FUNCTION__ << "Caught an exception in the refresh thread");
