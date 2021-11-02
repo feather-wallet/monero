@@ -3224,12 +3224,12 @@ void wallet2::update_pool_state(std::vector<std::tuple<cryptonote::transaction, 
     }
   }
 
+  cryptonote::COMMAND_RPC_GET_TRANSACTIONS::request chunk_req = AUTO_VAL_INIT(chunk_req);
+  cryptonote::COMMAND_RPC_GET_TRANSACTIONS::response chunk_res = AUTO_VAL_INIT(chunk_res);
+
   // get_transaction_pool_hashes.bin may return more transactions than we're allowed to request in restricted mode
   for (size_t offset = 0; offset < txids.size(); offset += RESTRICTED_TRANSACTIONS_COUNT)
   {
-    cryptonote::COMMAND_RPC_GET_TRANSACTIONS::request chunk_req;
-    cryptonote::COMMAND_RPC_GET_TRANSACTIONS::response chunk_res;
-
     const size_t n_txids = std::min<size_t>(RESTRICTED_TRANSACTIONS_COUNT, txids.size() - offset);
     for (size_t n = offset; n < (offset + n_txids); ++n) {
       chunk_req.txs_hashes.push_back(epee::string_tools::pod_to_hex(txids.at(n).first));
@@ -6130,7 +6130,7 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   {
     MERROR("Failed to save rings, will try again next time");
   }
-  
+
   try
   {
     if (use_fs)
