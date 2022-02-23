@@ -662,6 +662,7 @@ bool WalletImpl::recoverFromKeysWithPassword(const std::string &path,
         setStatusError(string(tr("failed to generate new wallet: ")) + e.what());
         return false;
     }
+    m_password = password;
     return true;
 }
 
@@ -679,6 +680,7 @@ bool WalletImpl::recoverFromDevice(const std::string &path, const std::string &p
         setStatusError(string(tr("failed to generate new wallet: ")) + e.what());
         return false;
     }
+    m_password = password;
     return true;
 }
 
@@ -757,6 +759,7 @@ bool WalletImpl::recover(const std::string &path, const std::string &password, c
         setStatusCritical(e.what());
     }
     m_deviceConnected = true;
+    m_password = password;
     return status() == Status_Ok;
 }
 
@@ -790,6 +793,7 @@ bool WalletImpl::recoverDeterministicWalletFromSpendKey(const std::string &path,
     } catch (const std::exception &e) {
         setStatusCritical(e.what());
     }
+    m_password = password;
     return status() == Status_Ok;
 }
 
