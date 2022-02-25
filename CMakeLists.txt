@@ -1052,7 +1052,7 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang" AND ARCH_WIDTH EQUAL "32" AND NOT IOS AND
   endif()
 endif()
 
-
+find_library(SODIUM_LIBRARY sodium)
 
 include(external/supercop/functions.cmake) # place after setting flags and before src directory inclusion
 add_subdirectory(contrib)
