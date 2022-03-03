@@ -6316,6 +6316,8 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   if (get_num_subaddress_accounts() == 0)
     add_subaddress_account(tr("Primary account"));
 
+  m_ring_history_saved = true;
+
   try
   {
     if (use_fs)
@@ -6391,6 +6393,9 @@ void wallet2::store()
 void wallet2::store_to(const std::string &path, const epee::wipeable_string &password)
 {
   trim_hashchain();
+
+  // set this here to prevent other wallets from leaking outgoing transactions in find_and_save_rings().
+  m_ring_history_saved = true;
 
   // if file is the same, we do:
   // 1. save wallet to the *.new file
