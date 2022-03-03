@@ -6748,6 +6748,8 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   if (get_num_subaddress_accounts() == 0)
     add_subaddress_account(tr("Primary account"));
 
+  m_ring_history_saved = true;
+
   try
   {
     if (use_fs)
@@ -6816,6 +6818,9 @@ void wallet2::store_to(const std::string &path, const epee::wipeable_string &pas
   const bool had_old_wallet_files = !m_wallet_file.empty();
   THROW_WALLET_EXCEPTION_IF(!had_old_wallet_files && path.empty(), error::wallet_internal_error,
     "Cannot resave wallet to current file since wallet was not loaded from file to begin with");
+
+  // set this here to prevent other wallets from leaking outgoing transactions in find_and_save_rings().
+  m_ring_history_saved = true;
 
   // if file is the same, we do:
   // 1. overwrite the keys file iff force_rewrite_keys is specified
