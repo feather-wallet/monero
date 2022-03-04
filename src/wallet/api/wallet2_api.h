@@ -1135,6 +1135,7 @@ struct Wallet
      */
     virtual void setDefaultMixin(uint32_t arg) = 0;
 
+    virtual bool cacheAttributeExists(const std::string &key) = 0;
     /*!
      * \brief setCacheAttribute - attach an arbitrary string to a wallet cache attribute
      * \param key - the key
