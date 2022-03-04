@@ -800,7 +800,6 @@ bool WalletImpl::recoverDeterministicWalletFromSpendKey(const std::string &path,
 
 bool WalletImpl::close(bool store)
 {
-
     bool result = false;
     LOG_PRINT_L1("closing wallet...");
     try {
@@ -2157,6 +2156,11 @@ uint32_t WalletImpl::defaultMixin() const
 void WalletImpl::setDefaultMixin(uint32_t arg)
 {
     m_wallet->default_mixin(arg);
+}
+
+bool WalletImpl::cacheAttributeExists(const std::string &key) {
+    std::string value;
+    return m_wallet->get_attribute(key, value);
 }
 
 bool WalletImpl::setCacheAttribute(const std::string &key, const std::string &val)
