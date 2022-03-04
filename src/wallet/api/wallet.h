@@ -223,6 +223,7 @@ public:
     virtual uint32_t defaultMixin() const override;
     virtual void setDefaultMixin(uint32_t arg) override;
 
+    virtual bool cacheAttributeExists(const std::string &key) override;
     virtual bool setCacheAttribute(const std::string &key, const std::string &val) override;
     virtual std::string getCacheAttribute(const std::string &key) const override;
 
