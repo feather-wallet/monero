@@ -388,7 +388,7 @@ struct Subaddress
     virtual bool setLabel(uint32_t accountIndex, uint32_t addressIndex, const std::string &label) = 0;
     virtual std::string errorString() const = 0;
     virtual int errorCode() const = 0;
-    virtual void refresh(uint32_t accountIndex) = 0;
+    virtual bool refresh(uint32_t accountIndex) = 0;
 };
 
 struct SubaddressAccountRow {
