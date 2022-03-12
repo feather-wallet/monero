@@ -5339,6 +5339,17 @@ bool wallet2::verify_password(const std::string& keys_file_name, const epee::wip
   return r;
 }
 
+bool wallet2::verify_keys() {
+  const cryptonote::account_keys& keys = m_account.get_keys();
+  hw::device &hwdev = m_account.get_device();
+  bool r = hwdev.verify_keys(keys.m_view_secret_key, keys.m_account_address.m_view_public_key);
+  if (!m_watch_only && !m_multisig && hwdev.device_protocol() != hw::device::PROTOCOL_COLD) {
+    r = r && hwdev.verify_keys(keys.m_spend_secret_key, keys.m_account_address.m_spend_public_key);
+  }
+
+  return r;
+}
+
 void wallet2::encrypt_keys(const crypto::chacha_key &key)
 {
   m_account.encrypt_keys(key);
