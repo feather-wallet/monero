@@ -82,7 +82,7 @@ bool SubaddressImpl::setLabel(uint32_t accountIndex, uint32_t addressIndex, cons
   return true;
 }
 
-void SubaddressImpl::refresh(uint32_t accountIndex) 
+bool SubaddressImpl::refresh(uint32_t accountIndex)
 {
   LOG_PRINT_L2("Refreshing subaddress");
   
@@ -94,6 +94,15 @@ void SubaddressImpl::refresh(uint32_t accountIndex)
             m_wallet->m_wallet->get_subaddress_label({accountIndex, (uint32_t)i}),
             m_wallet->m_wallet->get_subaddress_used({accountIndex, (uint32_t)i})));
   }
+
+  // Make sure keys are intact. We NEVER want to display incorrect addresses in case of memory corruption.
+  if (m_wallet->m_wallet->get_device_type() == hw::device::SOFTWARE && !m_wallet->m_wallet->verify_keys()) {
+      clearRows();
+      LOG_ERROR("KEY INCONSISTENCY DETECTED, WALLET IS IN CORRUPT STATE.");
+      return false;
+  }
+
+  return true;
 }
 
 void SubaddressImpl::clearRows() {
