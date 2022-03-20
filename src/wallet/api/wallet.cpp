@@ -1857,14 +1857,12 @@ PendingTransaction* WalletImpl::restoreMultisigTransaction(const string& signDat
 //    - unconfirmed_transfer_details;
 //    - confirmed_transfer_details)
 
-PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<string> &dst_addr, const string &payment_id, optional<std::vector<uint64_t>> amount, uint32_t mixin_count, PendingTransaction::Priority priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
+PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<string> &dst_addr, const string &payment_id, optional<std::vector<uint64_t>> amount, uint32_t mixin_count, PendingTransaction::Priority priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, const std::set<std::string> &preferred_inputs, bool subtractFeeFromAmount)
 
 {
     clearStatus();
       
     cryptonote::address_parse_info info;
-
-    uint32_t adjusted_priority = m_wallet->adjust_priority(static_cast<uint32_t>(priority));
 
     PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
 
@@ -1924,6 +1922,19 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<stri
                 }
             }
         }
+        std::vector<crypto::key_image> preferred_input_list;
+        if (!preferred_inputs.empty()) {
+          for (const auto &public_key : preferred_inputs) {
+            crypto::key_image keyImage;
+            bool r = epee::string_tools::hex_to_pod(public_key, keyImage);
+            if (!r) {
+              error = true;
+              setStatusError(tr("failed to parse key image"));
+              break;
+            }
+            preferred_input_list.push_back(keyImage);
+          }
+        }
         if (error) {
             break;
         }
@@ -1935,14 +1946,24 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<stri
             size_t fake_outs_count = mixin_count > 0 ? mixin_count : m_wallet->default_mixin();
             fake_outs_count = m_wallet->adjust_mixin(mixin_count);
 
+            tools::wallet2::unique_index_container subtract_fee_from_outputs;
+            subtract_fee_from_outputs.clear();
+
+            if (subtractFeeFromAmount) {
+                for (decltype(subtract_fee_from_outputs)::value_type i = 0; i < dsts.size(); ++i) {
+                  subtract_fee_from_outputs.insert(i);
+                }
+            }
+
             if (amount) {
                 transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, fake_outs_count,
-                                                                            adjusted_priority,
-                                                                            extra, subaddr_account, subaddr_indices);
+                                                                            priority,
+                                                                            extra, subaddr_account, subaddr_indices,
+                                                                            subtract_fee_from_outputs, preferred_input_list);
             } else {
                 transaction->m_pending_tx = m_wallet->create_transactions_all(0, info.address, info.is_subaddress, 1, fake_outs_count,
-                                                                              adjusted_priority,
-                                                                              extra, subaddr_account, subaddr_indices);
+                                                                              priority,
+                                                                              extra, subaddr_account, subaddr_indices, preferred_input_list);
             }
             pendingTxPostProcess(transaction);
 
@@ -2022,10 +2043,10 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<stri
 }
 
 PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const string &payment_id, optional<uint64_t> amount, uint32_t mixin_count,
-                                                  PendingTransaction::Priority priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices)
+                                                  PendingTransaction::Priority priority, uint32_t subaddr_account, std::set<uint32_t> subaddr_indices, const std::set<std::string> &preferred_inputs, bool subtractFeeFromAmount)
 
 {
-    return createTransactionMultDest(std::vector<string> {dst_addr}, payment_id, amount ? (std::vector<uint64_t> {*amount}) : (optional<std::vector<uint64_t>>()), mixin_count, priority, subaddr_account, subaddr_indices);
+    return createTransactionMultDest(std::vector<string> {dst_addr}, payment_id, amount ? (std::vector<uint64_t> {*amount}) : (optional<std::vector<uint64_t>>()), mixin_count, priority, subaddr_account, subaddr_indices, preferred_inputs, subtractFeeFromAmount);
 }
 
 PendingTransaction *WalletImpl::createTransactionSingle(const std::string &key_image, const std::string &dst_addr,
@@ -2040,8 +2061,6 @@ PendingTransaction *WalletImpl::createTransactionSelected(const std::vector<std:
     clearStatus();
 
     cryptonote::address_parse_info info;
-
-    uint32_t adjusted_priority = m_wallet->adjust_priority(static_cast<uint32_t>(priority));
 
     PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
 

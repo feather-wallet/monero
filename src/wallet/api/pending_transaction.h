@@ -50,6 +50,7 @@ public:
     uint64_t amount() const override;
     uint64_t dust() const override;
     uint64_t fee() const override;
+    uint64_t weight(int index) const override;
     std::vector<std::string> txid() const override;
     uint64_t txCount() const override;
     std::vector<uint32_t> subaddrAccount() const override;
