@@ -8844,7 +8844,9 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
 
     std::unique_ptr<gamma_picker> gamma;
     if (has_rct) {
-      check_rct_distribution();
+      if (m_nettype == MAINNET) {
+        check_rct_distribution();
+      }
       gamma.reset(new gamma_picker(m_rct_offsets.offsets()));
     }
     size_t num_selected_transfers = 0;
