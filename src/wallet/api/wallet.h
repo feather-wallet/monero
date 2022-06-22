@@ -60,7 +60,7 @@ public:
                 const std::string &language);
     bool createWatchOnly(const std::string &path, const std::string &password,
                             const std::string &language) const override;
-    bool open(const std::string &path, const std::string &password);
+    bool open(const std::string &path, const std::string &password, std::string ringDatabasePath);
     bool recover(const std::string &path,const std::string &password,
                             const std::string &seed, const std::string &seed_offset = {});
     bool recoverFromKeysWithPassword(const std::string &path,
@@ -277,6 +277,7 @@ public:
     virtual uint64_t getBytesReceived() override;
     virtual uint64_t getBytesSent() override;
     virtual bool isDeviceConnected() override;
+    virtual bool setRingDatabase(const std::string &path) override;
 
 private:
     void clearStatus() const;

@@ -724,7 +724,7 @@ Wallet::Device WalletImpl::getDeviceType() const
     return static_cast<Wallet::Device>(m_wallet->get_device_type());
 }
 
-bool WalletImpl::open(const std::string &path, const std::string &password)
+bool WalletImpl::open(const std::string &path, const std::string &password, std::string ringDatabasePath)
 {
     clearStatus();
     m_recoveringFromSeed = false;
@@ -739,7 +739,10 @@ bool WalletImpl::open(const std::string &path, const std::string &password)
             // Rebuilding wallet cache, using refresh height from .keys file
             m_rebuildWalletCache = true;
         }
-        m_wallet->set_ring_database(get_default_ringdb_path(m_wallet->nettype()));
+        if (ringDatabasePath.empty()) {
+            ringDatabasePath = get_default_ringdb_path(m_wallet->nettype());
+        }
+        m_wallet->set_ring_database(ringDatabasePath);
         m_wallet->load(path, password);
 
         m_password = password;
@@ -3168,5 +3171,13 @@ uint64_t WalletImpl::getBytesSent()
 bool WalletImpl::isDeviceConnected()
 {
     return m_wallet->device_connected();
+}
+
+bool WalletImpl::setRingDatabase(const std::string &path) {
+    std::string ringdb_path = path;
+    if (ringdb_path.empty()) {
+        ringdb_path = get_default_ringdb_path(m_wallet->nettype());
+    }
+    return m_wallet->set_ring_database(ringdb_path);
 }
 } // namespace
