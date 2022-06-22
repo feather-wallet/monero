@@ -62,7 +62,7 @@ Wallet *WalletManagerImpl::createWallet(const std::string &path, const std::stri
     return wallet;
 }
 
-Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds, WalletListener * listener)
+Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string &password, NetworkType nettype, uint64_t kdf_rounds, const std::string &ringDatabasePath, WalletListener * listener)
 {
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
     wallet->setListener(listener);
@@ -70,7 +70,7 @@ Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string
         listener->onSetWallet(wallet);
     }
 
-    wallet->open(path, password);
+    wallet->open(path, password, ringDatabasePath);
     //Refresh addressBook
     wallet->addressBook()->refresh(); 
     return wallet;
