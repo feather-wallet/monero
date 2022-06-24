@@ -3805,13 +3805,16 @@ bool wallet2::get_rct_distribution()
 
 bool wallet2::load_cached_rct_distribution()
 {
-  // Check if we have local cache
+  if (m_nettype != MAINNET) {
+    return false;
+  }
+
   std::string filename = get_output_distribution_cache_filename();
   std::string data;
   bool r = this->load_from_file(filename, data);
   if (!r)
   {
-    MERROR("Failed to read out: " << filename);
+    MERROR("Failed to read output distribution cache: " << filename);
     return false;
   }
 
@@ -3953,6 +3956,10 @@ bool wallet2::cache_rct_distribution(uint64_t from_height)
 }
 
 void wallet2::check_rct_distribution() {
+    if (m_nettype != MAINNET) {
+        return;
+    }
+
     crypto::hash checkpoint_hash;
     bool r = epee::string_tools::hex_to_pod(OUTPUT_DISTRIBUTION_CHECKPOINT_HASH, checkpoint_hash);
     THROW_WALLET_EXCEPTION_IF(!r, error::wallet_internal_error, "Invalid output distribution checkpoint hash");
