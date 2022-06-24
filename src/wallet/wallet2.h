@@ -1627,6 +1627,9 @@ private:
 
     bool cache_rct_distribution(uint64_t from_height);
     void check_rct_distribution();
+    bool get_rct_distribution();
+    bool load_cached_rct_distribution();
+    std::string get_output_distribution_cache_filename();
 
   private:
     /*!
@@ -1707,8 +1710,6 @@ private:
 
     void register_devices();
     hw::device& lookup_device(const std::string & device_descriptor);
-
-    bool get_rct_distribution();
 
     uint64_t get_segregation_fork_height() const;
     void unpack_multisig_info(const std::vector<std::string>& info,
@@ -1857,6 +1858,7 @@ private:
     // store calculated key image for faster lookup
     serializable_unordered_map<crypto::public_key, serializable_map<uint64_t, crypto::key_image> > m_key_image_cache;
 
+    std::string m_ring_database_preferred_path;
     std::string m_ring_database;
     bool m_ring_history_saved;
     std::unique_ptr<ringdb> m_ringdb;

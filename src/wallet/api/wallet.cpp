@@ -2605,7 +2605,7 @@ bool WalletImpl::doRefresh()
         m_wallet->refresh(trustedDaemon());
         if (!m_synchronized) {
             // Cache output distribution for later
-            m_wallet->cache_rct_distribution(0);
+            m_wallet->get_rct_distribution();
             m_synchronized = true;
         }
         // assuming if we have empty history, it wasn't initialized yet

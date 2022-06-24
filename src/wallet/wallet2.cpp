@@ -150,6 +150,7 @@ using namespace cryptonote;
 #define DEFAULT_UNLOCK_TIME (CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE * DIFFICULTY_TARGET_V2)
 #define RECENT_SPEND_WINDOW (15 * DIFFICULTY_TARGET_V2)
 
+#define OUTPUT_DISTRIBUTION_CACHE_MAGIC "Monero output distribution cache\001"
 #define OUTPUT_DISTRIBUTION_CHECKPOINT_HEIGHT 2567211
 #define OUTPUT_DISTRIBUTION_CHECKPOINT_HASH "64be5065b858f231c7724107ecceb2517c5fa803c1a6a9e8f11142393b43008b"
 #define OUTPUT_DISTRIBUTION_MAX_OUTPUT_SUM 100000000
@@ -3774,7 +3775,11 @@ bool wallet2::get_rct_distribution()
 {
   // We haven't populated the cache yet, grab it
   if (m_rct_offsets.size() == 0) {
-    return cache_rct_distribution(0);
+    int start_height = 0;
+    if (load_cached_rct_distribution()) {
+      start_height = OUTPUT_DISTRIBUTION_CHECKPOINT_HEIGHT;
+    }
+    return cache_rct_distribution(start_height);
   }
   // Our cache isn't up to date, we need to grab more offsets
   else if (m_blockchain.size() > m_rct_offsets.size())
@@ -3796,6 +3801,69 @@ bool wallet2::get_rct_distribution()
   }
 
   return true;
+}
+
+bool wallet2::load_cached_rct_distribution()
+{
+  // Check if we have local cache
+  std::string filename = get_output_distribution_cache_filename();
+  std::string data;
+  bool r = this->load_from_file(filename, data);
+  if (!r)
+  {
+    MERROR("Failed to read out: " << filename);
+    return false;
+  }
+
+  const size_t magiclen = strlen(OUTPUT_DISTRIBUTION_CACHE_MAGIC);
+  if (data.size() < magiclen || memcmp(data.data(), OUTPUT_DISTRIBUTION_CACHE_MAGIC, magiclen))
+  {
+    MERROR("Bad magic for output distribution cache: " << filename);
+    boost::filesystem::remove(filename);
+    return false;
+  }
+
+  bool loaded = false;
+  try {
+    std::string body(data, magiclen);
+    rct_offsets cached_offsets;
+    try {
+      binary_archive<false> ar{epee::strspan<std::uint8_t>(body)};
+      if (::serialization::serialize(ar, cached_offsets))
+        if (::serialization::check_stream_state(ar))
+          loaded = true;
+    }
+    catch (...) {}
+
+    m_rct_offsets.init(cached_offsets.start_height(), cached_offsets.offsets());
+  }
+  catch(...) {}
+
+  if (!loaded) {
+    MERROR("Failed to load output distribution cache: " << filename);
+    boost::filesystem::remove(filename);
+    return false;
+  }
+
+  try {
+    check_rct_distribution();
+  }
+  catch(...) {
+    // Cached output distribution did not pass check, delete the file
+    MERROR("Output distribution cache did not pass hash check: " << filename);
+    boost::filesystem::remove(filename);
+    return false;
+  }
+
+  return true;
+}
+
+std::string wallet2::get_output_distribution_cache_filename()
+{
+  if (!m_ring_database_preferred_path.empty()) {
+    return m_ring_database_preferred_path + "/outdist.cache";
+  }
+  return get_default_ringdb_path() + "/outdist.cache";
 }
 
 bool wallet2::cache_rct_distribution(uint64_t from_height)
@@ -3912,6 +3980,24 @@ void wallet2::check_rct_distribution() {
 
     // sanity check
     THROW_WALLET_EXCEPTION_IF(m_rct_offsets.offsets().back() >= OUTPUT_DISTRIBUTION_MAX_OUTPUT_SUM, error::wallet_internal_error, "Unrealistic number of outputs in output distribution");
+
+    // Persist cache to disk
+    std::string cache_file = get_output_distribution_cache_filename();
+    if (!boost::filesystem::exists(cache_file)) {
+      MWARNING("Saving output distribution cache file to disk: " << cache_file);
+
+      std::stringstream oss;
+      binary_archive<true> ar(oss);
+
+      THROW_WALLET_EXCEPTION_IF(!::serialization::serialize(ar, rct_offsets_to_hash), error::wallet_internal_error, "Failed to serialize output data");
+
+      std::string magic(OUTPUT_DISTRIBUTION_CACHE_MAGIC, strlen(OUTPUT_DISTRIBUTION_CACHE_MAGIC));
+      std::string data = oss.str();
+      r = save_to_file(cache_file, magic + data);
+      if (!r) {
+        MERROR("Failed to save output distribution cache: " << cache_file);
+      }
+    }
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -8298,6 +8384,7 @@ uint32_t wallet2::adjust_priority(uint32_t priority)
 //----------------------------------------------------------------------------------------------------
 bool wallet2::set_ring_database(const std::string &filename)
 {
+  m_ring_database_preferred_path = filename;
   m_ring_database = filename;
   MINFO("ringdb path set to " << filename);
   m_ringdb.reset();
