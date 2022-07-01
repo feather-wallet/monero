@@ -2928,4 +2928,12 @@ bool WalletImpl::isDeviceConnected()
 {
     return m_wallet->device_connected();
 }
+
+bool WalletImpl::setRingDatabase(const std::string &path) {
+    std::string ringdb_path = path;
+    if (ringdb_path.empty()) {
+        ringdb_path = get_default_ringdb_path(m_wallet->nettype());
+    }
+    return m_wallet->set_ring_database(ringdb_path);
+}
 } // namespace
