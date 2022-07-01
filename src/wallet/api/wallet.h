@@ -270,6 +270,7 @@ public:
     virtual uint64_t getBytesReceived() override;
     virtual uint64_t getBytesSent() override;
     virtual bool isDeviceConnected() override;
+    virtual bool setRingDatabase(const std::string &path) override;
 
 private:
     void clearStatus() const;
