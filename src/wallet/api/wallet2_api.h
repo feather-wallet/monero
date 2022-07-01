@@ -1289,6 +1289,9 @@ struct Wallet
 
     //! is hw device connected
     virtual bool isDeviceConnected() = 0;
+
+    //! set ring database path
+    virtual bool setRingDatabase(const std::string &path) = 0;
 };
 
 /**
