@@ -441,7 +441,7 @@ namespace net_utils
 					m_io_service.run_one(); 
 				}
 
-        if (boost::interprocess::ipcdetail::atomic_read32(&m_cancel_read))
+        if (m_cancel_read)
         {
           LOG_ERROR("Cancelling read, returning false");
           m_connected = false;
@@ -590,7 +590,7 @@ namespace net_utils
       bool cancel_read()
       {
           MDEBUG("Cancelling read");
-          boost::interprocess::ipcdetail::atomic_write32(&m_cancel_read, 1);
+          m_cancel_read = true;
           return true;
       }
 
