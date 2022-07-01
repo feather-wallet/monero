@@ -228,6 +228,7 @@ namespace epee
       default: 
         CHECK_AND_ASSERT_THROW_MES(false, "unknown entry_type code = " << type);
       }
+      return {};
     }
 
     inline 
@@ -319,6 +320,7 @@ namespace epee
       default: 
         CHECK_AND_ASSERT_THROW_MES(false, "unknown entry_type code = " << ent_type);
       }
+      return {};
     }
     inline 
     void throwable_buffer_reader::read(section& sec)
