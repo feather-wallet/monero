@@ -54,7 +54,6 @@ target_link_libraries(cryptonote_core
     version
     common
     cncrypto
-    blockchain_db
     multisig
     ringct
     device
