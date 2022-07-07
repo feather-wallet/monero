@@ -127,9 +127,5 @@ if(BUILD_DEBUG_UTILITIES)
   add_subdirectory(debug_utilities)
 endif()
 
-if(PER_BLOCK_CHECKPOINT)
-  add_subdirectory(blocks)
-endif()
-
 add_subdirectory(device)
 add_subdirectory(device_trezor)
