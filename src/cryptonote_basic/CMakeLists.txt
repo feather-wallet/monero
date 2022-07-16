@@ -86,5 +86,6 @@ target_link_libraries(cryptonote_basic
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
+    ${Boost_ATOMIC_LIBRARY}
   PRIVATE
     ${EXTRA_LIBRARIES})
