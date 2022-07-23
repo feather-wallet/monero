@@ -47,7 +47,9 @@
 #include <sstream>
 #include <unordered_map>
 
+#ifdef WIN32
 #include <boost/locale.hpp>
+#endif
 #include <boost/filesystem.hpp>
 
 using namespace std;
