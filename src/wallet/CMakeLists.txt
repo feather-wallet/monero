@@ -64,6 +64,7 @@ target_link_libraries(wallet
     ${Boost_THREAD_LIBRARY}
     ${Boost_REGEX_LIBRARY}
     ${Boost_ATOMIC_LIBRARY}
+    iconv
   PRIVATE
     ${EXTRA_LIBRARIES})
 

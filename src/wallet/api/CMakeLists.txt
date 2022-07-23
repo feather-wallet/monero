@@ -89,6 +89,7 @@ target_link_libraries(wallet_api
     ${CMAKE_THREAD_LIBS_INIT}
     ${Boost_REGEX_LIBRARY}
     ${Boost_ATOMIC_LIBRARY}
+    iconv
   PRIVATE
     ${EXTRA_LIBRARIES})
 
