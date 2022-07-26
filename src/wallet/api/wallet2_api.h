@@ -804,6 +804,7 @@ struct Wallet
     {
         return paymentIdFromAddress(str, testnet ? TESTNET : MAINNET);
     }
+    static std::string baseAddressFromIntegratedAddress(const std::string &str, NetworkType nettype);
     static uint64_t maximumAllowedAmount();
     // Easylogger wrapper
     static void init(const char *argv0, const char *default_log_base_name) { init(argv0, default_log_base_name, "", true); }

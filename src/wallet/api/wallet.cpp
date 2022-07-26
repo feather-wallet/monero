@@ -384,6 +384,14 @@ std::string Wallet::paymentIdFromAddress(const std::string &str, NetworkType net
   return epee::string_tools::pod_to_hex(info.payment_id);
 }
 
+std::string Wallet::baseAddressFromIntegratedAddress(const std::string &str, NetworkType nettype)
+{
+    cryptonote::address_parse_info info;
+    if (!get_account_address_from_str(info, static_cast<cryptonote::network_type>(nettype), str))
+        return "";
+    return get_account_address_as_str(static_cast<cryptonote::network_type>(nettype), info.is_subaddress, info.address);
+}
+
 uint64_t Wallet::maximumAllowedAmount()
 {
     return std::numeric_limits<uint64_t>::max();
