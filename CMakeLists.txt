@@ -1111,7 +1111,7 @@ add_definitions(-DBOOST_UUID_DISABLE_ALIGNMENT) # This restores UUID's std::has_
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 if(MINGW)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wa,-mbig-obj")
-  set(EXTRA_LIBRARIES z;mswsock;ws2_32;iphlpapi;crypt32;bcrypt)
+  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32;bcrypt)
   if(DEPENDS)
     set(ICU_LIBRARIES icuio icui18n icuuc icudata icutu iconv)
   else()
