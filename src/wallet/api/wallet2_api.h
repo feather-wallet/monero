@@ -706,6 +706,12 @@ struct Wallet
     virtual void setSubaddressLookahead(uint32_t major, uint32_t minor) = 0;
 
     /**
+     * @brief getSubaddressLookahead - get the current subaddress lookahead
+     * @return - <major>:<minor>
+     */
+    virtual std::pair<size_t, size_t> getSubaddressLookahead() = 0;
+
+    /**
      * @brief connectToDaemon - connects to the daemon. TODO: check if it can be removed
      * @return
      */
@@ -1344,7 +1350,7 @@ struct WalletManager
      */
     virtual Wallet * recoveryWallet(const std::string &path, const std::string &password, const std::string &mnemonic,
                                     NetworkType nettype = MAINNET, uint64_t restoreHeight = 0, uint64_t kdf_rounds = 1,
-                                    const std::string &seed_offset = {}) = 0;
+                                    const std::string &seed_offset = {}, const std::string &subaddressLookahead = "") = 0;
     Wallet * recoveryWallet(const std::string &path, const std::string &password, const std::string &mnemonic,
                                     bool testnet = false, uint64_t restoreHeight = 0)           // deprecated
     {
@@ -1387,7 +1393,8 @@ struct WalletManager
                                                     const std::string &addressString,
                                                     const std::string &viewKeyString,
                                                     const std::string &spendKeyString = "",
-                                                    uint64_t kdf_rounds = 1) = 0;
+                                                    uint64_t kdf_rounds = 1,
+                                                    const std::string &subaddressLookahead = "") = 0;
     Wallet * createWalletFromKeys(const std::string &path,
                                   const std::string &password,
                                   const std::string &language,
@@ -1418,7 +1425,8 @@ struct WalletManager
                                                            uint64_t restoreHeight,
                                                            const std::string &spendKeyString,
                                                            uint64_t kdf_rounds = 1,
-                                                           const std::string &offset_passphrase = "") = 0;
+                                                           const std::string &offset_passphrase = "",
+                                                           const std::string &subaddressLookahead = "") = 0;
 
    /*!
     * \deprecated this method creates a wallet WITHOUT a passphrase, use createWalletFromKeys(..., password, ...) instead
