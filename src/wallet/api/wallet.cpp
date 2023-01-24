@@ -2549,15 +2549,9 @@ bool WalletImpl::connectToDaemon()
 Wallet::ConnectionStatus WalletImpl::connected() const
 {
     uint32_t version = 0;
-    bool wallet_is_outdated, daemon_is_outdated = false;
-    m_is_connected = m_wallet->check_connection(&version, NULL, DEFAULT_CONNECTION_TIMEOUT_MILLIS, &wallet_is_outdated, &daemon_is_outdated);
+    m_is_connected = m_wallet->check_connection(&version, NULL, DEFAULT_CONNECTION_TIMEOUT_MILLIS);
     if (!m_is_connected)
-    {
-        if (!m_wallet->light_wallet() && (wallet_is_outdated || daemon_is_outdated))
-            return Wallet::ConnectionStatus_WrongVersion;
-        else
-            return Wallet::ConnectionStatus_Disconnected;
-    }
+        return Wallet::ConnectionStatus_Disconnected;
     // Version check is not implemented in light wallets nodes/wallets
     if (!m_wallet->light_wallet() && (version >> 16) != CORE_RPC_VERSION_MAJOR)
         return Wallet::ConnectionStatus_WrongVersion;
