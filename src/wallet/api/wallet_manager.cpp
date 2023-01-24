@@ -99,11 +99,17 @@ Wallet *WalletManagerImpl::recoveryWallet(const std::string &path,
                                                 NetworkType nettype,
                                                 uint64_t restoreHeight,
                                                 uint64_t kdf_rounds,
-                                                const std::string &seed_offset/* = {}*/)
+                                                const std::string &seed_offset,/* = {}*/
+                                                const std::string &subaddressLookahead)
 {
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
     if(restoreHeight > 0){
         wallet->setRefreshFromBlockHeight(restoreHeight);
+    }
+    auto lookahead = tools::parse_subaddress_lookahead(subaddressLookahead);
+    if (lookahead)
+    {
+        wallet->setSubaddressLookahead(lookahead->first, lookahead->second);
     }
     wallet->recover(path, password, mnemonic, seed_offset);
     return wallet;
@@ -117,11 +123,17 @@ Wallet *WalletManagerImpl::createWalletFromKeys(const std::string &path,
                                                 const std::string &addressString,
                                                 const std::string &viewKeyString,
                                                 const std::string &spendKeyString,
-                                                uint64_t kdf_rounds)
+                                                uint64_t kdf_rounds,
+                                                const std::string &subaddressLookahead)
 {
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
     if(restoreHeight > 0){
         wallet->setRefreshFromBlockHeight(restoreHeight);
+    }
+    auto lookahead = tools::parse_subaddress_lookahead(subaddressLookahead);
+    if (lookahead)
+    {
+    wallet->setSubaddressLookahead(lookahead->first, lookahead->second);
     }
     wallet->recoverFromKeysWithPassword(path, password, language, addressString, viewKeyString, spendKeyString);
     return wallet;
@@ -134,11 +146,17 @@ Wallet *WalletManagerImpl::createDeterministicWalletFromSpendKey(const std::stri
                                                                  uint64_t restoreHeight,
                                                                  const std::string &spendkey_string,
                                                                  uint64_t kdf_rounds,
-                                                                 const std::string &offset_passphrase)
+                                                                 const std::string &offset_passphrase,
+                                                                 const std::string &subaddressLookahead)
 {
     WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
     if(restoreHeight > 0){
         wallet->setRefreshFromBlockHeight(restoreHeight);
+    }
+    auto lookahead = tools::parse_subaddress_lookahead(subaddressLookahead);
+    if (lookahead)
+    {
+        wallet->setSubaddressLookahead(lookahead->first, lookahead->second);
     }
     wallet->recoverDeterministicWalletFromSpendKey(path, password, language, spendkey_string, offset_passphrase);
     return wallet;
