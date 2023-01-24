@@ -139,6 +139,7 @@ public:
     void setRecoveringFromSeed(bool recoveringFromSeed) override;
     void setRecoveringFromDevice(bool recoveringFromDevice) override;
     void setSubaddressLookahead(uint32_t major, uint32_t minor) override;
+    std::pair<size_t, size_t> getSubaddressLookahead() override;
     bool watchOnly() const override;
     bool isDeterministic() const override;
     bool rescanSpent() override;

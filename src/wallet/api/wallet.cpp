@@ -1099,6 +1099,11 @@ void WalletImpl::setSubaddressLookahead(uint32_t major, uint32_t minor)
     m_wallet->set_subaddress_lookahead(major, minor);
 }
 
+std::pair<size_t, size_t> WalletImpl::getSubaddressLookahead()
+{
+    return m_wallet->get_subaddress_lookahead();
+}
+
 uint64_t WalletImpl::balance(uint32_t accountIndex) const
 {
     return m_wallet->balance(accountIndex, false);
