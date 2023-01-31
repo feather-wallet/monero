@@ -96,8 +96,8 @@ public:
     int status() const override;
     std::string errorString() const override;
     void statusWithErrorString(int& status, std::string& errorString) const override;
-    bool setPassword(const std::string &password) override;
-    const std::string& getPassword() const override;
+    bool setPassword(const std::string &old_password, const std::string &new_password) override;
+    bool verifyPassword(const std::string &password) const override;
     bool setDevicePin(const std::string &password) override;
     bool setDevicePassphrase(const std::string &password) override;
     std::string address(uint32_t accountIndex = 0, uint32_t addressIndex = 0) const override;
@@ -110,7 +110,7 @@ public:
     std::string publicMultisigSignerKey() const override;
     std::string path() const override;
     void stop() override;
-    bool store(const std::string &path) override;
+    bool store() override;
     std::string filename() const override;
     std::string keysFilename() const override;
     bool init(const std::string &daemon_address, uint64_t upper_transaction_size_limit = 0, const std::string &daemon_username = "", const std::string &daemon_password = "", bool use_ssl = false, bool lightWallet = false, const std::string &proxy_address = "", bool use_dns = false) override;
@@ -299,7 +299,6 @@ private:
     mutable boost::mutex m_statusMutex;
     mutable int m_status;
     mutable std::string m_errorString;
-    std::string m_password;
     std::unique_ptr<TransactionHistoryImpl> m_history;
     std::unique_ptr<Wallet2CallbackImpl> m_wallet2Callback;
     std::unique_ptr<AddressBookImpl>  m_addressBook;
