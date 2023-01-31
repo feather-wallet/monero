@@ -526,7 +526,6 @@ bool WalletImpl::create(const std::string &path, const std::string &password, co
     crypto::secret_key recovery_val, secret_key;
     try {
         recovery_val = m_wallet->generate(path, password, secret_key, false, false);
-        m_password = password;
         clearStatus();
     } catch (const std::exception &e) {
         LOG_ERROR("Error creating wallet: " << e.what());
@@ -705,7 +704,6 @@ bool WalletImpl::recoverFromKeysWithPassword(const std::string &path,
         setStatusError(string(tr("failed to generate new wallet: ")) + e.what());
         return false;
     }
-    m_password = password;
     return true;
 }
 
@@ -723,7 +721,6 @@ bool WalletImpl::recoverFromDevice(const std::string &path, const std::string &p
         setStatusError(string(tr("failed to generate new wallet: ")) + e.what());
         return false;
     }
-    m_password = password;
     return true;
 }
 
@@ -752,8 +749,6 @@ bool WalletImpl::open(const std::string &path, const std::string &password, std:
         }
         m_wallet->set_ring_database(ringDatabasePath);
         m_wallet->load(path, password);
-
-        m_password = password;
     } catch (const tools::error::invalid_password &e) {
         LOG_ERROR("Error opening wallet: " << e.what());
         setStatus(Status_BadPassword, e.what());
@@ -805,7 +800,6 @@ bool WalletImpl::recover(const std::string &path, const std::string &password, c
         setStatusCritical(e.what());
     }
     m_deviceConnected = true;
-    m_password = password;
     return status() == Status_Ok;
 }
 
@@ -839,7 +833,6 @@ bool WalletImpl::recoverDeterministicWalletFromSpendKey(const std::string &path,
     } catch (const std::exception &e) {
         setStatusCritical(e.what());
     }
-    m_password = password;
     return status() == Status_Ok;
 }
 
@@ -910,23 +903,22 @@ void WalletImpl::statusWithErrorString(int& status, std::string& errorString) co
     errorString = m_errorString;
 }
 
-bool WalletImpl::setPassword(const std::string &password)
+bool WalletImpl::setPassword(const std::string &old_password, const std::string &new_password)
 {
     if (checkBackgroundSync("cannot change password"))
         return false;
     clearStatus();
     try {
-        m_wallet->change_password(m_wallet->get_wallet_file(), m_password, password);
-        m_password = password;
+        m_wallet->change_password(m_wallet->get_wallet_file(), old_password, new_password);
     } catch (const std::exception &e) {
         setStatusError(e.what());
     }
     return status() == Status_Ok;
 }
 
-const std::string& WalletImpl::getPassword() const
+bool WalletImpl::verifyPassword(const std::string &password) const
 {
-    return m_password;
+    return m_wallet->verify_password(password);
 }
 
 bool WalletImpl::setDevicePin(const std::string &pin)
@@ -1026,15 +1018,11 @@ void WalletImpl::stop()
     m_wallet->stop();
 }
 
-bool WalletImpl::store(const std::string &path)
+bool WalletImpl::store()
 {
     clearStatus();
     try {
-        if (path.empty()) {
-            m_wallet->store();
-        } else {
-            m_wallet->store_to(path, m_password);
-        }
+        m_wallet->store();
     } catch (const std::exception &e) {
         LOG_ERROR("Error saving wallet: " << e.what());
         setStatusError(e.what());
@@ -1745,35 +1733,10 @@ string WalletImpl::getMultisigInfo() const {
 }
 
 string WalletImpl::makeMultisig(const vector<string>& info, const uint32_t threshold) {
-    if (checkBackgroundSync("cannot make multisig"))
-        return string();
-    try {
-        clearStatus();
-
-        if (m_wallet->multisig()) {
-            throw runtime_error("Wallet is already multisig");
-        }
-
-        return m_wallet->make_multisig(epee::wipeable_string(m_password), info, threshold);
-    } catch (const exception& e) {
-        LOG_ERROR("Error on making multisig wallet: " << e.what());
-        setStatusError(string(tr("Failed to make multisig: ")) + e.what());
-    }
-
     return string();
 }
 
 std::string WalletImpl::exchangeMultisigKeys(const std::vector<std::string> &info, const bool force_update_use_with_caution /*= false*/) {
-    try {
-        clearStatus();
-        checkMultisigWalletNotReady(m_wallet);
-
-        return m_wallet->exchange_multisig_keys(epee::wipeable_string(m_password), info, force_update_use_with_caution);
-    } catch (const exception& e) {
-        LOG_ERROR("Error on exchanging multisig keys: " << e.what());
-        setStatusError(string(tr("Failed to exchange multisig keys: ")) + e.what());
-    }
-
     return string();
 }
 
