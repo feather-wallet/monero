@@ -563,8 +563,8 @@ struct Wallet
     virtual std::string errorString() const = 0; //deprecated: use safe alternative statusWithErrorString
     //! returns both error and error string atomically. suggested to use in instead of status() and errorString()
     virtual void statusWithErrorString(int& status, std::string& errorString) const = 0;
-    virtual bool setPassword(const std::string &password) = 0;
-    virtual const std::string& getPassword() const = 0;
+    virtual bool setPassword(const std::string &old_password, const std::string &new_password) = 0;
+    virtual bool verifyPassword(const std::string &password) const = 0;
     virtual bool setDevicePin(const std::string &pin) { (void)pin; return false; };
     virtual bool setDevicePassphrase(const std::string &passphrase) { (void)passphrase; return false; };
     virtual std::string address(uint32_t accountIndex = 0, uint32_t addressIndex = 0) const = 0;
@@ -627,11 +627,9 @@ struct Wallet
 
     /*!
      * \brief store - stores wallet to file.
-     * \param path - main filename to store wallet to. additionally stores address file and keys file.
-     *               to store to the same file - just pass empty string;
      * \return
      */
-    virtual bool store(const std::string &path) = 0;
+    virtual bool store() = 0;
     /*!
      * \brief filename - returns wallet filename
      * \return
