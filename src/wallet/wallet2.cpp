@@ -2765,11 +2765,34 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
     // if sending to yourself at the same subaddress account, set the outgoing payment amount to 0 so that it's less confusing
     if (tx_money_spent_in_ins == self_received + fee) {
       if (pool) {
+        // Processing an outgoing unconfirmed transaction
         auto i = m_unconfirmed_txs.find(txid);
-        THROW_WALLET_EXCEPTION_IF(i == m_unconfirmed_txs.end(), error::wallet_internal_error,
-                                  "unconfirmed tx wasn't found: " + string_tools::pod_to_hex(txid));
-        i->second.m_change = self_received;
-      } else {
+        if (i == m_unconfirmed_txs.end()) {
+          // We don't have it yet, perhaps it was relayed using a tx pusher
+          unconfirmed_transfer_details& utd = m_unconfirmed_txs[cryptonote::get_transaction_hash(tx)];
+          utd.m_amount_in = tx_money_spent_in_ins;
+          utd.m_amount_out = tx_money_spent_in_ins - tx.rct_signatures.txnFee;
+          utd.m_change = self_received;
+          utd.m_subaddr_account = *subaddr_account;
+          utd.m_subaddr_indices = subaddr_indices;
+          utd.m_timestamp = ts;
+          utd.m_state = wallet2::unconfirmed_transfer_details::pending;
+          for (const auto &in: tx.vin)
+          {
+            if (in.type() != typeid(cryptonote::txin_to_key))
+              continue;
+            const auto &txin = boost::get<cryptonote::txin_to_key>(in);
+            utd.m_rings.push_back(std::make_pair(txin.k_image, txin.key_offsets));
+          }
+          if (0 != m_callback) {
+              // Update the UI
+              m_callback->on_money_spent(height, txid, tx, self_received, tx, {0});
+           }
+        } else {
+          i->second.m_change = self_received;
+        }
+      }
+      else {
         auto i = m_confirmed_txs.find(txid);
         THROW_WALLET_EXCEPTION_IF(i == m_confirmed_txs.end(), error::wallet_internal_error,
                                   "confirmed tx wasn't found: " + string_tools::pod_to_hex(txid));
