@@ -148,7 +148,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
         // Don't flood the GUI with signals. On fast refresh - send signal every 1000th block
         // get_refresh_from_block_height() returns the blockheight from when the wallet was 
         // created or the restore height specified when wallet was recovered
-        if(height >= m_wallet->m_wallet->get_refresh_from_block_height() || height % 1000 == 0) {
+        if(height >= (m_wallet->m_wallet->get_refresh_from_block_height() - 1) || height % 1000 == 0) {
             // LOG_PRINT_L3(__FUNCTION__ << ": new block. height: " << height);
             if (m_listener) {
                 m_listener->newBlock(height);
