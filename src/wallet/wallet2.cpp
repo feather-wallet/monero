@@ -5317,7 +5317,8 @@ bool wallet2::verify_password(const std::string& keys_file_name, const epee::wip
     account_data_check.decrypt_keys(key);
 
   const cryptonote::account_keys& keys = account_data_check.get_keys();
-  r = r && hwdev.verify_keys(keys.m_view_secret_key,  keys.m_account_address.m_view_public_key);
+  // Ledger expects view_secret_key to always be null
+  r = r && hwdev.verify_keys(hwdev.get_type() == hw::device::device_type::LEDGER ? crypto::null_skey : keys.m_view_secret_key,  keys.m_account_address.m_view_public_key);
   if(!no_spend_key)
     r = r && hwdev.verify_keys(keys.m_spend_secret_key, keys.m_account_address.m_spend_public_key);
   return r;
