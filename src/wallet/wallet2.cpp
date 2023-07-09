@@ -1242,7 +1242,8 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended, std
   m_load_deprecated_formats(false),
   m_credits_target(0),
   m_enable_multisig(false),
-  m_has_ever_refreshed_from_node(false)
+  m_has_ever_refreshed_from_node(false),
+  m_hw_view_key(crypto::null_skey)
 {
   set_rpc_client_secret_key(rct::rct2sk(rct::skGen()));
 }
