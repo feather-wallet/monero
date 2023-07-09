@@ -939,7 +939,8 @@ std::string WalletImpl::integratedAddress(const std::string &payment_id) const
 
 std::string WalletImpl::secretViewKey() const
 {
-    return epee::string_tools::pod_to_hex(unwrap(unwrap(m_wallet->get_account().get_keys().m_view_secret_key)));
+    bool hw_view_key = m_wallet->get_device_type() == hw::device::device_type::LEDGER && m_wallet->m_hw_view_key != crypto::null_skey;
+    return epee::string_tools::pod_to_hex(hw_view_key ? m_wallet->m_hw_view_key : unwrap(unwrap(m_wallet->get_account().get_keys().m_view_secret_key)));
 }
 
 std::string WalletImpl::publicViewKey() const
