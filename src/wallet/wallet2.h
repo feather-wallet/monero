@@ -1010,6 +1010,8 @@ private:
     void decrypt_keys(const crypto::chacha_key &key);
     void decrypt_keys(const epee::wipeable_string &password);
 
+    crypto::secret_key m_hw_view_key;
+
     void set_refresh_from_block_height(uint64_t height) {m_refresh_from_block_height = height;}
     uint64_t get_refresh_from_block_height() const {return m_refresh_from_block_height;}
 
@@ -1895,7 +1897,6 @@ private:
     bool spends_one_of_ours(const cryptonote::transaction &tx) const;
 
     cryptonote::account_base m_account;
-    crypto::secret_key m_hw_view_key;
     boost::optional<epee::net_utils::http::login> m_daemon_login;
     std::string m_daemon_address;
     std::string m_wallet_file;
