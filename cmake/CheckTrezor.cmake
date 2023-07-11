@@ -95,25 +95,10 @@ if(Protobuf_FOUND AND USE_DEVICE_TREZOR AND TREZOR_PYTHON)
     if(RET)
         message(STATUS "Protobuf test generation failed: ${OUT} ${ERR}")
     endif()
-
-    try_compile(Protobuf_COMPILE_TEST_PASSED
-        "${CMAKE_BINARY_DIR}"
-        SOURCES
-        "${CMAKE_BINARY_DIR}/test-protobuf.pb.cc"
-        "${CMAKE_CURRENT_LIST_DIR}/test-protobuf.cpp"
-        CMAKE_FLAGS
-        "-DINCLUDE_DIRECTORIES=${Protobuf_INCLUDE_DIR};${CMAKE_BINARY_DIR}"
-        "-DCMAKE_CXX_STANDARD=11"
-        LINK_LIBRARIES ${Protobuf_LIBRARY}
-        OUTPUT_VARIABLE OUTPUT
-    )
-    if(NOT Protobuf_COMPILE_TEST_PASSED)
-        message(STATUS "Protobuf Compilation test failed: ${OUTPUT}.")
-    endif()
 endif()
 
 # Try to build protobuf messages
-if(Protobuf_FOUND AND USE_DEVICE_TREZOR AND TREZOR_PYTHON AND Protobuf_COMPILE_TEST_PASSED)
+if(Protobuf_FOUND AND USE_DEVICE_TREZOR AND TREZOR_PYTHON)
     set(ENV{PROTOBUF_INCLUDE_DIRS} "${Protobuf_INCLUDE_DIR}")
     set(ENV{PROTOBUF_PROTOC_EXECUTABLE} "${Protobuf_PROTOC_EXECUTABLE}")
     set(TREZOR_PROTOBUF_PARAMS "")
