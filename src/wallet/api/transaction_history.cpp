@@ -267,7 +267,11 @@ void TransactionHistoryImpl::refresh()
         
         LOG_PRINT_L1(__FUNCTION__ << ": Unconfirmed payment found " << pd.m_amount);
     }
-     
+
+    std::sort(m_history.begin(), m_history.end(),
+              [] (TransactionInfo const *a, TransactionInfo const *b) {
+        return a->blockHeight() == b->blockHeight() ? a->hash() > b->hash() : a->blockHeight() < b->blockHeight();
+    });
 }
 
 } // namespace
