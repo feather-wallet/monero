@@ -108,7 +108,7 @@ namespace tools
       std::string to_string() const
       {
         std::ostringstream ss;
-        ss << m_loc << ':' << typeid(*this).name() << ": " << Base::what();
+        ss << Base::what();
         return ss.str();
       }
 
@@ -786,7 +786,7 @@ namespace tools
       std::string to_string() const
       {
         std::ostringstream ss;
-        ss << wallet_logic_error::to_string() << ", request = " << m_request;
+        ss << "RPC Error. " << wallet_logic_error::to_string() << ": " << m_request;
         return ss.str();
       }
 
