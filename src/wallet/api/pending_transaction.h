@@ -66,6 +66,7 @@ public:
     std::string multisigSignData() override;
     void signMultisigTx() override;
     std::vector<std::string> signersKeys() const override;
+    const std::exception_ptr getException() const { return exception; }
 
 private:
     friend class WalletImpl;
@@ -73,6 +74,7 @@ private:
 
     int  m_status;
     std::string m_errorString;
+    std::exception_ptr exception = nullptr;
     std::vector<tools::wallet2::pending_tx> m_pending_tx;
     std::vector<PendingTransactionInfo*> m_pending_tx_info;
     std::unordered_set<crypto::public_key> m_signers;
