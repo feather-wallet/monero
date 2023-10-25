@@ -467,11 +467,13 @@ namespace tools
         : transfer_error(std::move(loc), "not enough unlocked money")
         , m_available(available)
         , m_tx_amount(tx_amount)
+        , m_fee(fee)
       {
       }
 
       uint64_t available() const { return m_available; }
       uint64_t tx_amount() const { return m_tx_amount; }
+      uint64_t fee() const { return m_fee; }
 
       std::string to_string() const
       {
@@ -485,6 +487,7 @@ namespace tools
     private:
       uint64_t m_available;
       uint64_t m_tx_amount;
+      uint64_t m_fee;
     };
     //----------------------------------------------------------------------------------------------------
     struct not_enough_money : public transfer_error
@@ -493,11 +496,13 @@ namespace tools
         : transfer_error(std::move(loc), "not enough money")
         , m_available(available)
         , m_tx_amount(tx_amount)
+        , m_fee(fee)
       {
       }
 
       uint64_t available() const { return m_available; }
       uint64_t tx_amount() const { return m_tx_amount; }
+      uint64_t fee() const { return m_fee; }
 
       std::string to_string() const
       {
@@ -511,6 +516,7 @@ namespace tools
     private:
       uint64_t m_available;
       uint64_t m_tx_amount;
+      uint64_t m_fee;
     };
     //----------------------------------------------------------------------------------------------------
     struct tx_not_possible : public transfer_error
