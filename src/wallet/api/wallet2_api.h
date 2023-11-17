@@ -40,6 +40,10 @@
 #include <stdexcept>
 #include <cstdint>
 
+namespace tools {
+    class wallet2;
+}
+
 //  Public interface for libwallet library
 namespace Monero {
 
@@ -215,166 +219,6 @@ struct UnsignedTransaction
     virtual TransactionConstructionInfo * transaction(int index) const = 0;
 };
 
-/**
- * @brief The TransactionInfo - interface for displaying transaction information
- */
-struct TransactionInfo
-{
-    enum Direction {
-        Direction_In,
-        Direction_Out
-    };
-
-    struct Transfer {
-        Transfer(uint64_t _amount, const std::string &address);
-        const uint64_t amount;
-        const std::string address;
-    };
-
-    virtual ~TransactionInfo() = 0;
-    virtual int  direction() const = 0;
-    virtual bool isPending() const = 0;
-    virtual bool isFailed() const = 0;
-    virtual bool isCoinbase() const = 0;
-    virtual uint64_t amount() const = 0;
-    virtual uint64_t fee() const = 0;
-    virtual uint64_t blockHeight() const = 0;
-    virtual std::string description() const = 0;
-    virtual std::set<uint32_t> subaddrIndex() const = 0;
-    virtual uint32_t subaddrAccount() const = 0;
-    virtual std::string label() const = 0;
-    virtual uint64_t confirmations() const = 0;
-    virtual uint64_t unlockTime() const = 0;
-    //! transaction_id
-    virtual std::string hash() const = 0;
-    virtual std::time_t timestamp() const = 0;
-    virtual std::string paymentId() const = 0;
-    //! only applicable for output transactions
-    virtual const std::vector<Transfer> & transfers() const = 0;
-};
-/**
- * @brief The TransactionHistory - interface for displaying transaction history
- */
-struct TransactionHistory
-{
-    virtual ~TransactionHistory() = 0;
-    virtual int count() const = 0;
-    virtual TransactionInfo * transaction(int index)  const = 0;
-    virtual TransactionInfo * transaction(const std::string &id) const = 0;
-    virtual std::vector<TransactionInfo*> getAll() const = 0;
-    virtual void refresh() = 0;
-    virtual void setTxNote(const std::string &txid, const std::string &note) = 0;
-};
-
-/**
- * @brief AddressBookRow - provides functions to manage address book
- */
-struct AddressBookRow {
-public:
-    AddressBookRow(std::size_t _rowId, const std::string &_address, const std::string &_paymentId, const std::string &_description):
-        m_rowId(_rowId),
-        m_address(_address),
-        m_paymentId(_paymentId), 
-        m_description(_description) {}
- 
-private:
-    std::size_t m_rowId;
-    std::string m_address;
-    std::string m_paymentId;
-    std::string m_description;
-public:
-    std::string extra;
-    std::string getAddress() const {return m_address;} 
-    std::string getDescription() const {return m_description;} 
-    std::string getPaymentId() const {return m_paymentId;} 
-    std::size_t getRowId() const {return m_rowId;}
-};
-
-/**
- * @brief The AddressBook - interface for 
-Book
- */
-struct AddressBook
-{
-    enum ErrorCode {
-        Status_Ok,
-        General_Error,
-        Invalid_Address,
-        Invalid_Payment_Id
-    };
-    virtual ~AddressBook() = 0;
-    virtual std::vector<AddressBookRow*> getAll() const = 0;
-    virtual bool addRow(const std::string &dst_addr , const std::string &payment_id, const std::string &description) = 0;  
-    virtual bool deleteRow(std::size_t rowId) = 0;
-    virtual bool setDescription(std::size_t index, const std::string &description) = 0;
-    virtual void refresh() = 0;  
-    virtual std::string errorString() const = 0;
-    virtual int errorCode() const = 0;
-    virtual int lookupPaymentID(const std::string &payment_id) const = 0;
-};
-
-struct SubaddressRow {
-public:
-    SubaddressRow(std::size_t _rowId, const std::string &_address, const std::string &_label):
-        m_rowId(_rowId),
-        m_address(_address),
-        m_label(_label) {}
- 
-private:
-    std::size_t m_rowId;
-    std::string m_address;
-    std::string m_label;
-public:
-    std::string extra;
-    std::string getAddress() const {return m_address;}
-    std::string getLabel() const {return m_label;}
-    std::size_t getRowId() const {return m_rowId;}
-};
-
-struct Subaddress
-{
-    virtual ~Subaddress() = 0;
-    virtual std::vector<SubaddressRow*> getAll() const = 0;
-    virtual bool addRow(uint32_t accountIndex, const std::string &label) = 0;
-    virtual bool setLabel(uint32_t accountIndex, uint32_t addressIndex, const std::string &label) = 0;
-    virtual std::string errorString() const = 0;
-    virtual int errorCode() const = 0;
-    virtual void refresh(uint32_t accountIndex) = 0;
-};
-
-struct SubaddressAccountRow {
-public:
-    SubaddressAccountRow(std::size_t _rowId, const std::string &_address, const std::string &_label, const std::string &_balance, const std::string &_unlockedBalance):
-        m_rowId(_rowId),
-        m_address(_address),
-        m_label(_label),
-        m_balance(_balance),
-        m_unlockedBalance(_unlockedBalance) {}
-
-private:
-    std::size_t m_rowId;
-    std::string m_address;
-    std::string m_label;
-    std::string m_balance;
-    std::string m_unlockedBalance;
-public:
-    std::string extra;
-    std::string getAddress() const {return m_address;}
-    std::string getLabel() const {return m_label;}
-    std::string getBalance() const {return m_balance;}
-    std::string getUnlockedBalance() const {return m_unlockedBalance;}
-    std::size_t getRowId() const {return m_rowId;}
-};
-
-struct SubaddressAccount
-{
-    virtual ~SubaddressAccount() = 0;
-    virtual std::vector<SubaddressAccountRow*> getAll() const = 0;
-    virtual void addRow(const std::string &label) = 0;
-    virtual void setLabel(uint32_t accountIndex, const std::string &label) = 0;
-    virtual void refresh() = 0;
-};
-
 struct MultisigState {
     MultisigState() : isMultisig(false), isReady(false), threshold(0), total(0) {}
 
@@ -383,7 +227,6 @@ struct MultisigState {
     uint32_t threshold;
     uint32_t total;
 };
-
 
 struct DeviceProgress {
     DeviceProgress(): m_progress(0), m_indeterminate(false) {}
@@ -1119,10 +962,6 @@ struct Wallet
      */
     virtual bool haveTransaction(const std::string &txid) = 0;
 
-    virtual TransactionHistory * history() = 0;
-    virtual AddressBook * addressBook() = 0;
-    virtual Subaddress * subaddress() = 0;
-    virtual SubaddressAccount * subaddressAccount() = 0;
     virtual void setListener(WalletListener *) = 0;
     /*!
      * \brief defaultMixin - returns number of mixins used in transactions
@@ -1289,6 +1128,8 @@ struct Wallet
 
     //! set ring database path
     virtual bool setRingDatabase(const std::string &path) = 0;
+
+    virtual tools::wallet2* getWallet() = 0;
 };
 
 /**
