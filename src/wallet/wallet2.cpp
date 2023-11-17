@@ -7098,6 +7098,28 @@ void wallet2::get_unconfirmed_payments(std::list<std::pair<crypto::hash,wallet2:
     unconfirmed_payments.push_back(*i);
   }
 }
+
+bool wallet2::is_change(const wallet2::transfer_details &td)
+{
+    bool change = false;
+    if (td.m_subaddr_index.minor != 0) {
+        return false;
+    }
+
+    for (const cryptonote::txin_v& in : td.m_tx.vin)
+    {
+        if (in.type() == typeid(cryptonote::txin_to_key)) {
+            const cryptonote::txin_to_key &tx_in_to_key = boost::get<cryptonote::txin_to_key>(in);
+            const auto found = m_key_images.find(tx_in_to_key.k_image);
+            if (found != m_key_images.end()) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 //----------------------------------------------------------------------------------------------------
 void wallet2::rescan_spent()
 {

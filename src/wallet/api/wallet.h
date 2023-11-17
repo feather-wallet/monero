@@ -41,13 +41,9 @@
 
 
 namespace Monero {
-class TransactionHistoryImpl;
 class PendingTransactionImpl;
 class UnsignedTransactionImpl;
 class AddressBookImpl;
-class SubaddressImpl;
-class CoinsImpl;
-class SubaddressAccountImpl;
 class PendingTransactionInfoImpl;
 class TransactionConstructionInfoImpl;
 struct Wallet2CallbackImpl;
@@ -216,11 +212,6 @@ public:
     virtual void disposeTransaction(PendingTransaction * t) override;
     virtual uint64_t estimateTransactionFee(const std::vector<std::pair<std::string, uint64_t>> &destinations,
                                             PendingTransaction::Priority priority) const override;
-    virtual TransactionHistory * history() override;
-    virtual AddressBook * addressBook() override;
-    virtual Coins * coins() override;
-    virtual Subaddress * subaddress() override;
-    virtual SubaddressAccount * subaddressAccount() override;
     virtual void setListener(WalletListener * l) override;
     virtual uint32_t defaultMixin() const override;
     virtual void setDefaultMixin(uint32_t arg) override;
@@ -272,6 +263,7 @@ public:
     virtual uint64_t getBytesSent() override;
     virtual bool isDeviceConnected() override;
     virtual bool setRingDatabase(const std::string &path) override;
+    virtual tools::wallet2* getWallet() override;
 
 private:
     void clearStatus() const;
@@ -285,13 +277,9 @@ private:
 
 private:
     friend class PendingTransactionImpl;
-    friend class UnsignedTransactionImpl;    
-    friend class TransactionHistoryImpl;
+    friend class UnsignedTransactionImpl;
     friend struct Wallet2CallbackImpl;
     friend class AddressBookImpl;
-    friend class SubaddressImpl;
-    friend class CoinsImpl;
-    friend class SubaddressAccountImpl;
     friend class PendingTransactionInfoImpl;
     friend class TransactionConstructionInfoImpl;
 
@@ -299,12 +287,7 @@ private:
     mutable boost::mutex m_statusMutex;
     mutable int m_status;
     mutable std::string m_errorString;
-    std::unique_ptr<TransactionHistoryImpl> m_history;
     std::unique_ptr<Wallet2CallbackImpl> m_wallet2Callback;
-    std::unique_ptr<AddressBookImpl>  m_addressBook;
-    std::unique_ptr<SubaddressImpl>  m_subaddress;
-    std::unique_ptr<CoinsImpl> m_coins;
-    std::unique_ptr<SubaddressAccountImpl>  m_subaddressAccount;
 
     // multi-threaded refresh stuff
     std::atomic<bool> m_refreshEnabled;
