@@ -32,11 +32,6 @@
 #include "wallet.h"
 #include "pending_transaction.h"
 #include "unsigned_transaction.h"
-#include "transaction_history.h"
-#include "address_book.h"
-#include "subaddress.h"
-#include "coins.h"
-#include "subaddress_account.h"
 #include "common_defines.h"
 #include "common/util.h"
 #include "string_coding.h"
@@ -436,15 +431,10 @@ WalletImpl::WalletImpl(NetworkType nettype, uint64_t kdf_rounds)
     , m_refreshShouldRescan(false)
 {
     m_wallet.reset(new tools::wallet2(static_cast<cryptonote::network_type>(nettype), kdf_rounds, true));
-    m_history.reset(new TransactionHistoryImpl(this));
     m_wallet2Callback.reset(new Wallet2CallbackImpl(this));
     m_wallet->callback(m_wallet2Callback.get());
     m_refreshThreadDone = false;
     m_refreshEnabled = false;
-    m_addressBook.reset(new AddressBookImpl(this));
-    m_subaddress.reset(new SubaddressImpl(this));
-    m_coins.reset(new CoinsImpl(this));
-    m_subaddressAccount.reset(new SubaddressAccountImpl(this));
 
 
     m_refreshIntervalMillis = DEFAULT_REFRESH_INTERVAL_MILLIS;
@@ -1951,31 +1941,6 @@ uint64_t WalletImpl::estimateTransactionFee(const std::vector<std::pair<std::str
         m_wallet->get_fee_quantization_mask());
 }
 
-TransactionHistory *WalletImpl::history()
-{
-    return m_history.get();
-}
-
-AddressBook *WalletImpl::addressBook()
-{
-    return m_addressBook.get();
-}
-
-Coins *WalletImpl::coins()
-{
-    return m_coins.get();
-}
-
-Subaddress *WalletImpl::subaddress()
-{
-    return m_subaddress.get();
-}
-
-SubaddressAccount *WalletImpl::subaddressAccount()
-{
-    return m_subaddressAccount.get();
-}
-
 void WalletImpl::setListener(WalletListener *l)
 {
     // TODO thread synchronization;
@@ -2426,12 +2391,6 @@ bool WalletImpl::doRefresh()
             m_wallet->cache_rct_distribution(0);
             m_synchronized = true;
         }
-        // assuming if we have empty history, it wasn't initialized yet
-        // for further history changes client need to update history in
-        // "on_money_received" and "on_money_sent" callbacks
-        if (m_history->count() == 0) {
-            m_history->refresh();
-        }
 
     } catch (const std::exception &e) {
         LOG_ERROR(__FUNCTION__ << "Caught an exception in the refresh thread");
@@ -2771,4 +2730,9 @@ bool WalletImpl::setRingDatabase(const std::string &path) {
     }
     return m_wallet->set_ring_database(ringdb_path);
 }
+
+tools::wallet2* WalletImpl::getWallet() {
+    return m_wallet.get();
+}
+
 } // namespace
