@@ -71,8 +71,6 @@ Wallet *WalletManagerImpl::openWallet(const std::string &path, const std::string
     }
 
     wallet->open(path, password, ringDatabasePath);
-    //Refresh addressBook
-    wallet->addressBook()->refresh(); 
     return wallet;
 }
 
