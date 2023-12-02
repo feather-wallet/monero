@@ -212,6 +212,7 @@ struct UnsignedTransaction
     * return - true on success
     */
     virtual bool sign(const std::string &signedFileName) = 0;
+    virtual bool signToStr(std::string &data) = 0;
     virtual void refresh() = 0;
     virtual std::vector<TransactionConstructionInfo*> getAll() const = 0;
     virtual TransactionConstructionInfo * transaction(int index) const = 0;
@@ -530,6 +531,7 @@ struct Wallet
             result += unlockedBalance(i);
         return result;
     }
+    virtual uint64_t viewOnlyBalance(uint32_t accountIndex, const std::vector<std::string> &key_images = {}) const = 0;
 
    /**
     * @brief watchOnly - checks if wallet is watch only
@@ -837,6 +839,7 @@ struct Wallet
     * \return                - PendingTransaction object.
     */
     virtual PendingTransaction * loadSignedTx(const std::string &signed_filename) = 0;
+    virtual PendingTransaction * loadSignedTxFromStr(const std::string &data) = 0;
 
    /*!
     * \brief submitTransaction - submits transaction in signed tx file
@@ -858,6 +861,8 @@ struct Wallet
     virtual uint64_t estimateTransactionFee(const std::vector<std::pair<std::string, uint64_t>> &destinations,
                                             PendingTransaction::Priority priority) const = 0;
 
+    virtual bool hasUnknownKeyImages() const = 0;
+
    /*!
     * \brief exportKeyImages - exports key images to file
     * \param filename
@@ -865,6 +870,8 @@ struct Wallet
     * \return                  - true on success
     */
     virtual bool exportKeyImages(const std::string &filename, bool all = false) = 0;
+    virtual bool exportKeyImagesToStr(std::string &keyImages, bool all = false) = 0;
+    virtual bool exportKeyImagesForOutputsFromStr(const std::string &outputs, std::string &keyImages) = 0;
    
    /*!
     * \brief importKeyImages - imports key images from file
@@ -872,6 +879,7 @@ struct Wallet
     * \return                  - true on success
     */
     virtual bool importKeyImages(const std::string &filename) = 0;
+    virtual bool importKeyImagesFromStr(const std::string &keyImages) = 0;
 
     /*!
      * \brief importOutputs - exports outputs to file
@@ -879,6 +887,7 @@ struct Wallet
      * \return                  - true on success
      */
     virtual bool exportOutputs(const std::string &filename, bool all = false) = 0;
+    virtual bool exportOutputsToStr(std::string &outputs, bool all = false) = 0;
 
     /*!
      * \brief importOutputs - imports outputs from file
@@ -886,6 +895,7 @@ struct Wallet
      * \return                  - true on success
      */
     virtual bool importOutputs(const std::string &filename) = 0;
+    virtual bool importOutputsFromStr(const std::string &outputs) = 0;
 
     /*!
      * \brief scanTransactions - scan a list of transaction ids, this operation may reveal the txids to the remote node and affect your privacy
