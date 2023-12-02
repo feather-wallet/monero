@@ -48,7 +48,7 @@ namespace Monero {
     std::vector<TransactionConstructionInfo::Input> TransactionConstructionInfoImpl::inputs() const {
         std::vector<Input> inputs;
         for (const auto &i : m_txcd.sources) {
-            inputs.emplace_back(i.amount, epee::string_tools::pod_to_hex(i.real_out_tx_key));
+            inputs.emplace_back(i.amount, epee::string_tools::pod_to_hex(i.outputs[i.real_output].second.dest));
         }
         return inputs;
     }
