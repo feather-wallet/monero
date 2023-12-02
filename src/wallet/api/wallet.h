@@ -118,6 +118,7 @@ public:
     bool setProxy(const std::string &address) override;
     uint64_t balance(uint32_t accountIndex = 0) const override;
     uint64_t unlockedBalance(uint32_t accountIndex = 0) const override;
+    uint64_t viewOnlyBalance(uint32_t accountIndex, const std::vector<std::string> &key_images) const override;
     uint64_t blockChainHeight() const override;
     uint64_t approximateBlockChainHeight() const override;
     uint64_t estimateBlockChainHeight() const override;
@@ -183,10 +184,17 @@ public:
     virtual UnsignedTransaction * loadUnsignedTxFromStr(const std::string &unsigned_tx) override;
     virtual UnsignedTransaction * loadUnsignedTxFromBase64Str(const std::string &unsigned_tx) override;
     virtual PendingTransaction * loadSignedTx(const std::string &signed_filename) override;
+    virtual PendingTransaction * loadSignedTxFromStr(const std::string &data) override;
+    bool hasUnknownKeyImages() const override;
     bool exportKeyImages(const std::string &filename, bool all = false) override;
+    bool exportKeyImagesToStr(std::string &keyImages, bool all = false) override;
+    bool exportKeyImagesForOutputsFromStr(const std::string &outputs, std::string &keyImages) override;
     bool importKeyImages(const std::string &filename) override;
+    bool importKeyImagesFromStr(const std::string &outputs) override;
     bool exportOutputs(const std::string &filename, bool all = false) override;
+    bool exportOutputsToStr(std::string &outputs, bool all = false) override;
     bool importOutputs(const std::string &filename) override;
+    bool importOutputsFromStr(const std::string &outputs) override;
     bool scanTransactions(const std::vector<std::string> &txids) override;
 
     virtual std::string printBlockchain() override;
