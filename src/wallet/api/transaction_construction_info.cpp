@@ -47,9 +47,8 @@ namespace Monero {
 
     std::vector<TransactionConstructionInfo::Input> TransactionConstructionInfoImpl::inputs() const {
         std::vector<Input> inputs;
-        for (const auto &i : m_txcd.selected_transfers) {
-            const tools::wallet2::transfer_details &td = m_wallet.m_wallet->get_transfer_details(i);
-            inputs.emplace_back(td.m_amount, epee::string_tools::pod_to_hex(td.get_public_key()));
+        for (const auto &i : m_txcd.sources) {
+            inputs.emplace_back(i.amount, epee::string_tools::pod_to_hex(i.outputs[i.real_output].second.dest));
         }
         return inputs;
     }
