@@ -1093,6 +1093,24 @@ uint64_t WalletImpl::unlockedBalance(uint32_t accountIndex) const
     return m_wallet->unlocked_balance(accountIndex, false);
 }
 
+uint64_t WalletImpl::viewOnlyBalance(uint32_t accountIndex, const std::vector<std::string> &key_images) const
+{
+    clearStatus();
+
+    std::vector<crypto::key_image> kis;
+    for (const auto &key_image : key_images) {
+        crypto::key_image ki;
+        if (!epee::string_tools::hex_to_pod(key_image, ki))
+        {
+            setStatusError(tr("failed to parse key image"));
+            return 0;
+        }
+        kis.push_back(ki);
+    }
+
+    return m_wallet->view_only_balance(accountIndex, kis);
+}
+
 uint64_t WalletImpl::blockChainHeight() const
 {
     if(m_wallet->light_wallet()) {
@@ -1266,6 +1284,17 @@ PendingTransaction *WalletImpl::loadSignedTx(const std::string &signed_filename)
     return transaction;
 }
 
+PendingTransaction *WalletImpl::loadSignedTxFromStr(const std::string &data) {
+    clearStatus();
+    PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
+
+    if (!m_wallet->parse_tx_from_str(data, transaction->m_pending_tx, nullptr)) {
+        setStatusError(tr("Failed to load unsigned transactions"));
+    }
+
+    return transaction;
+}
+
 bool WalletImpl::submitTransaction(const string &fileName) {
   clearStatus();
   std::unique_ptr<PendingTransactionImpl> transaction(new PendingTransactionImpl(*this));
@@ -1284,6 +1313,11 @@ bool WalletImpl::submitTransaction(const string &fileName) {
   return true;
 }
 
+bool WalletImpl::hasUnknownKeyImages() const
+{
+    return m_wallet->has_unknown_key_images();
+}
+
 bool WalletImpl::exportKeyImages(const string &filename, bool all) 
 {
   if (m_wallet->watch_only())
@@ -1294,11 +1328,55 @@ bool WalletImpl::exportKeyImages(const string &filename, bool all)
   
   try
   {
-    if (!m_wallet->export_key_images(filename, all))
+    std::string data = m_wallet->export_key_images_to_str(all);
+    bool r = m_wallet->save_to_file(filename, data);
+    if (!r)
     {
       setStatusError(tr("failed to save file ") + filename);
       return false;
     }
+  }
+  catch (const std::exception &e)
+  {
+    LOG_ERROR("Error exporting key images: " << e.what());
+    setStatusError(e.what());
+    return false;
+  }
+  return true;
+}
+
+bool WalletImpl::exportKeyImagesToStr(std::string &keyImages, bool all)
+{
+  if (m_wallet->watch_only())
+  {
+    setStatusError(tr("Wallet is view only"));
+    return false;
+  }
+
+  try
+  {
+    keyImages = m_wallet->export_key_images_to_str(all);
+  }
+  catch (const std::exception &e)
+  {
+    LOG_ERROR("Error exporting key images: " << e.what());
+    setStatusError(e.what());
+    return false;
+  }
+  return true;
+}
+
+bool WalletImpl::exportKeyImagesForOutputsFromStr(const std::string &outputs, std::string &keyImages)
+{
+  if (m_wallet->watch_only())
+  {
+    setStatusError(tr("Wallet is view only"));
+    return false;
+  }
+
+  try
+  {
+    keyImages = m_wallet->export_key_images_for_outputs_from_str(outputs);
   }
   catch (const std::exception &e)
   {
@@ -1332,6 +1410,31 @@ bool WalletImpl::importKeyImages(const string &filename)
   return true;
 }
 
+bool WalletImpl::importKeyImagesFromStr(const std::string &keyImages)
+{
+    if (!trustedDaemon()) {
+        setStatusError(tr("Key images can only be imported with a trusted daemon"));
+        return false;
+    }
+
+    try
+    {
+        uint64_t spent = 0, unspent = 0;
+        std::string data = keyImages;
+        uint64_t height = m_wallet->import_key_images_from_str(data, spent, unspent);
+        LOG_PRINT_L2("Signed key images imported to height " << height << ", "
+                                                             << print_money(spent) << " spent, " << print_money(unspent) << " unspent");
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR("Error exporting key images: " << e.what());
+        setStatusError(string(tr("Failed to import key images: ")) + e.what());
+        return false;
+    }
+
+    return true;
+}
+
 bool WalletImpl::exportOutputs(const string &filename, bool all)
 {
     if (m_wallet->key_on_device())
@@ -1362,6 +1465,28 @@ bool WalletImpl::exportOutputs(const string &filename, bool all)
     return true;
 }
 
+bool WalletImpl::exportOutputsToStr(std::string &outputs, bool all)
+{
+    if (m_wallet->key_on_device())
+    {
+        setStatusError(string(tr("Not supported on HW wallets.")));
+        return false;
+    }
+
+    try
+    {
+        outputs = m_wallet->export_outputs_to_str(all);
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR("Error exporting outputs: " << e.what());
+        setStatusError(string(tr("Error exporting outputs: ")) + e.what());
+        return false;
+    }
+
+    return true;
+}
+
 bool WalletImpl::importOutputs(const string &filename)
 {
     if (m_wallet->key_on_device())
@@ -1382,6 +1507,29 @@ bool WalletImpl::importOutputs(const string &filename)
     try
     {
         size_t n_outputs = m_wallet->import_outputs_from_str(data);
+        LOG_PRINT_L2(std::to_string(n_outputs) << " outputs imported");
+    }
+    catch (const std::exception &e)
+    {
+        LOG_ERROR("Failed to import outputs: " << e.what());
+        setStatusError(string(tr("Failed to import outputs: ")) + e.what());
+        return false;
+    }
+
+    return true;
+}
+
+bool WalletImpl::importOutputsFromStr(const std::string &outputs)
+{
+    if (m_wallet->key_on_device())
+    {
+        setStatusError("Not supported on HW wallets.");
+        return false;
+    }
+
+    try
+    {
+        size_t n_outputs = m_wallet->import_outputs_from_str(outputs);
         LOG_PRINT_L2(std::to_string(n_outputs) << " outputs imported");
     }
     catch (const std::exception &e)
