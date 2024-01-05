@@ -40,7 +40,9 @@
 #include <stdexcept>
 #include <cstdint>
 
-#include "wallet/wallet2.h"
+namespace tools {
+    class wallet2;
+}
 
 //  Public interface for libwallet library
 namespace Monero {
