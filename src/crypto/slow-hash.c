@@ -135,7 +135,7 @@ static inline int force_software_aes(void)
 #define VARIANT1_CHECK() \
   do if (length < 43) \
   { \
-    fprintf(stderr, "Cryptonight variant 1 needs at least 43 bytes of data"); \
+    fprintf(stderr, "needs at least 43 bytes of data"); \
     _exit(1); \
   } while(0)
 
@@ -329,7 +329,7 @@ static inline int force_software_aes(void)
     { \
       int ret = v4_generate_JIT_code(code, hp_jitfunc, 4096); \
       if (ret < 0) \
-        local_abort("Error generating CryptonightR code"); \
+        local_abort("Error generating code"); \
     } \
   } while (0)
 
