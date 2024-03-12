@@ -142,6 +142,7 @@ namespace net_utils
 			std::string m_chunked_cache;
 			bool m_auto_connect;
 			critical_section m_lock;
+            bool m_reconnect = true;
 
 		public:
 			explicit http_simple_client_template()
@@ -203,6 +204,7 @@ namespace net_utils
         //---------------------------------------------------------------------------
         bool cancel_read() override
         {
+            m_reconnect = false;
             return m_net_client.cancel_read();
         }
 			//---------------------------------------------------------------------------
@@ -237,6 +239,11 @@ namespace net_utils
 				CRITICAL_REGION_LOCAL(m_lock);
 				if(!is_connected())
 				{
+                    if (!m_reconnect) {
+                        MDEBUG("Read cancelled, not reconnecting");
+                        return false;
+                    }
+
 					if (!m_auto_connect)
 					{
 						MWARNING("Auto connect attempt to " << m_host_buff << ":" << m_port << " disabled");
