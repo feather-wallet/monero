@@ -15931,6 +15931,21 @@ std::vector<cryptonote::public_node> wallet2::get_public_nodes(bool white_only)
   return nodes;
 }
 //----------------------------------------------------------------------------------------------------
+bool wallet2::remove_failed_tx(const crypto::hash &txid)
+{
+  auto i = m_unconfirmed_txs.find(txid);
+  if (i == m_unconfirmed_txs.end()) {
+     return false;
+  }
+
+  if (i->second.m_state != unconfirmed_transfer_details::failed) {
+    return false;
+  }
+
+  m_unconfirmed_txs.erase(i);
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
 std::pair<size_t, uint64_t> wallet2::estimate_tx_size_and_weight(bool use_rct, int n_inputs, int ring_size, int n_outputs, size_t extra_size)
 {
   THROW_WALLET_EXCEPTION_IF(n_inputs <= 0, tools::error::wallet_internal_error, "Invalid n_inputs");
