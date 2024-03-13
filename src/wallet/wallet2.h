@@ -1194,6 +1194,8 @@ private:
 
     std::vector<cryptonote::public_node> get_public_nodes(bool white_only = true);
 
+    bool remove_failed_tx(const crypto::hash &txid);
+
     template <class t_archive>
     inline void serialize(t_archive &a, const unsigned int ver)
     {
