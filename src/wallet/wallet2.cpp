@@ -978,7 +978,7 @@ bool get_pruned_tx(const cryptonote::COMMAND_RPC_GET_TRANSACTIONS::entry &entry,
   if (!entry.as_hex.empty() || (!entry.prunable_as_hex.empty() && !entry.pruned_as_hex.empty()))
   {
     CHECK_AND_ASSERT_MES(epee::string_tools::parse_hexstr_to_binbuff(entry.as_hex.empty() ? entry.pruned_as_hex + entry.prunable_as_hex : entry.as_hex, bd), false, "Failed to parse tx data");
-    CHECK_AND_ASSERT_MES(cryptonote::parse_and_validate_tx_from_blob(bd, tx), false, "Invalid tx data");
+    CHECK_AND_ASSERT_MES(parse_and_validate_tx_from_blob(bd, tx), false, "Invalid tx data");
     tx_hash = cryptonote::get_transaction_hash(tx);
     // if the hash was given, check it matches
     CHECK_AND_ASSERT_MES(entry.tx_hash.empty() || epee::string_tools::pod_to_hex(tx_hash) == entry.tx_hash, false,
@@ -1052,7 +1052,8 @@ gamma_picker::gamma_picker(const std::vector<uint64_t> &rct_offsets, double shap
     rct_offsets(rct_offsets)
 {
   gamma = std::gamma_distribution<double>(shape, scale);
-  THROW_WALLET_EXCEPTION_IF(rct_offsets.size() <= CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE, error::wallet_internal_error, "Bad offset calculation");
+  size_t default_tx_spendable_age = CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE;
+  THROW_WALLET_EXCEPTION_IF(rct_offsets.size() <= default_tx_spendable_age, error::wallet_internal_error, "Bad offset calculation");
   const size_t blocks_in_a_year = 86400 * 365 / DIFFICULTY_TARGET_V2;
   const size_t blocks_to_consider = std::min<size_t>(rct_offsets.size(), blocks_in_a_year);
   const size_t outputs_to_consider = rct_offsets.back() - (blocks_to_consider < rct_offsets.size() ? rct_offsets[rct_offsets.size() - blocks_to_consider - 1] : 0);
@@ -1827,7 +1828,7 @@ void wallet2::sort_scan_tx_entries(std::vector<process_tx_entry_t> &unsorted_tx_
   {
     const auto &blk = res.blocks[i];
     cryptonote::block parsed_block;
-    THROW_WALLET_EXCEPTION_IF(!cryptonote::parse_and_validate_block_from_blob(blk.block, parsed_block),
+    THROW_WALLET_EXCEPTION_IF(!parse_and_validate_block_from_blob(blk.block, parsed_block),
         error::wallet_internal_error, "Failed to parse block");
     parsed_blocks[req.heights[i]] = std::move(parsed_block);
   }
@@ -3224,7 +3225,7 @@ void wallet2::process_pool_info_extent(const cryptonote::COMMAND_RPC_GET_BLOCKS_
   for (const auto &pool_tx: res.added_pool_txs)
   {
     cryptonote::transaction tx;
-    THROW_WALLET_EXCEPTION_IF(!cryptonote::parse_and_validate_tx_base_from_blob(pool_tx.tx_blob, tx),
+    THROW_WALLET_EXCEPTION_IF(!parse_and_validate_tx_base_from_blob(pool_tx.tx_blob, tx),
         error::wallet_internal_error, "Failed to validate transaction base from daemon");
     added_pool_txs.push_back(std::make_tuple(tx, pool_tx.tx_hash, pool_tx.double_spend_seen));
   }
@@ -9722,8 +9723,9 @@ void wallet2::get_outs(std::vector<std::vector<tools::wallet2::get_outs_entry>> 
 
     if (has_rct)
     {
+      size_t default_tx_spendable_age = CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE;
       // check we're clear enough of rct start, to avoid corner cases below
-      THROW_WALLET_EXCEPTION_IF(m_rct_offsets.size() <= CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE,
+      THROW_WALLET_EXCEPTION_IF(m_rct_offsets.size() <= default_tx_spendable_age,
           error::get_output_distribution, "Not enough rct outputs");
       THROW_WALLET_EXCEPTION_IF(m_rct_offsets.back() <= max_rct_index,
           error::get_output_distribution, "Daemon reports suspicious number of rct outputs");
@@ -12954,7 +12956,7 @@ bool wallet2::get_tx_key(const crypto::hash &txid, crypto::secret_key &tx_key, s
     crypto::hash tx_prefix_hash{};
     bool ok = string_tools::parse_hexstr_to_binbuff(res.txs_as_hex.front(), tx_data);
     THROW_WALLET_EXCEPTION_IF(!ok, error::wallet_internal_error, "Failed to parse transaction from daemon");
-    THROW_WALLET_EXCEPTION_IF(!cryptonote::parse_and_validate_tx_from_blob(tx_data, tx, tx_hash, tx_prefix_hash),
+    THROW_WALLET_EXCEPTION_IF(!parse_and_validate_tx_from_blob(tx_data, tx, tx_hash, tx_prefix_hash),
                               error::wallet_internal_error, "Failed to validate transaction from daemon");
     THROW_WALLET_EXCEPTION_IF(tx_hash != txid, error::wallet_internal_error,
                               "Failed to get the right transaction from daemon");
@@ -13365,7 +13367,7 @@ void wallet2::check_tx_key_helper(const crypto::hash &txid, const crypto::key_de
     cryptonote::blobdata tx_data;
     ok = string_tools::parse_hexstr_to_binbuff(res.txs_as_hex.front(), tx_data);
     THROW_WALLET_EXCEPTION_IF(!ok, error::wallet_internal_error, "Failed to parse transaction from daemon");
-    THROW_WALLET_EXCEPTION_IF(!cryptonote::parse_and_validate_tx_from_blob(tx_data, tx),
+    THROW_WALLET_EXCEPTION_IF(!parse_and_validate_tx_from_blob(tx_data, tx),
         error::wallet_internal_error, "Failed to validate transaction from daemon");
     tx_hash = cryptonote::get_transaction_hash(tx);
   }
@@ -13463,7 +13465,7 @@ std::string wallet2::get_tx_proof(const crypto::hash &txid, const cryptonote::ac
       cryptonote::blobdata tx_data;
       ok = string_tools::parse_hexstr_to_binbuff(res.txs_as_hex.front(), tx_data);
       THROW_WALLET_EXCEPTION_IF(!ok, error::wallet_internal_error, "Failed to parse transaction from daemon");
-      THROW_WALLET_EXCEPTION_IF(!cryptonote::parse_and_validate_tx_from_blob(tx_data, tx),
+      THROW_WALLET_EXCEPTION_IF(!parse_and_validate_tx_from_blob(tx_data, tx),
           error::wallet_internal_error, "Failed to validate transaction from daemon");
       tx_hash = cryptonote::get_transaction_hash(tx);
     }
@@ -13624,7 +13626,7 @@ bool wallet2::check_tx_proof(const crypto::hash &txid, const cryptonote::account
     cryptonote::blobdata tx_data;
     ok = string_tools::parse_hexstr_to_binbuff(res.txs_as_hex.front(), tx_data);
     THROW_WALLET_EXCEPTION_IF(!ok, error::wallet_internal_error, "Failed to parse transaction from daemon");
-    THROW_WALLET_EXCEPTION_IF(!cryptonote::parse_and_validate_tx_from_blob(tx_data, tx),
+    THROW_WALLET_EXCEPTION_IF(!parse_and_validate_tx_from_blob(tx_data, tx),
         error::wallet_internal_error, "Failed to validate transaction from daemon");
     tx_hash = cryptonote::get_transaction_hash(tx);
   }
