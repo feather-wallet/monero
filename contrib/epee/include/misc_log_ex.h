@@ -42,7 +42,7 @@
 
 #define MCLOG_TYPE(level, cat, color, type, x) do { \
     if (el::Loggers::allowed(level, cat)) { \
-      el::base::Writer(level, color, __FILE__, __LINE__, ELPP_FUNC, type).construct(cat) << x; \
+      el::base::Writer(level, color, "", __LINE__, ELPP_FUNC, type).construct(cat) << x; \
     } \
   } while (0)
 
