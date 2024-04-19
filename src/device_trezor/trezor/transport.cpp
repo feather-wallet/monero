@@ -1173,12 +1173,12 @@ namespace trezor{
 #endif  // WITH_DEVICE_TREZOR_WEBUSB
 
   void enumerate(t_transport_vect & res){
-    BridgeTransport bt;
-    try{
-      bt.enumerate(res);
-    } catch (const std::exception & e){
-      MERROR("BridgeTransport enumeration failed:" << e.what());
-    }
+//    BridgeTransport bt;
+//    try{
+//      bt.enumerate(res);
+//    } catch (const std::exception & e){
+//      MERROR("BridgeTransport enumeration failed:" << e.what());
+//    }
 
 #ifdef WITH_DEVICE_TREZOR_WEBUSB
     hw::trezor::WebUsbTransport btw;
