@@ -1607,6 +1607,10 @@ private:
 
     bool is_synced();
 
+    std::vector<cryptonote::tx_backlog_entry> get_txpool_backlog();
+    uint64_t get_block_weight_limit();
+    std::vector<uint64_t> get_base_fees();
+
     std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(const std::vector<std::pair<double, double>> &fee_levels);
     std::vector<std::pair<uint64_t, uint64_t>> estimate_backlog(uint64_t min_tx_weight, uint64_t max_tx_weight, const std::vector<uint64_t> &fees);
 
@@ -1619,7 +1623,7 @@ private:
     uint64_t get_max_ring_size();
     uint64_t adjust_mixin(uint64_t mixin);
 
-    uint32_t adjust_priority(uint32_t priority);
+    uint32_t adjust_priority(uint32_t priority, std::vector<std::pair<uint64_t, uint64_t>> &blocks);
 
     bool is_unattended() const { return m_unattended; }
 
