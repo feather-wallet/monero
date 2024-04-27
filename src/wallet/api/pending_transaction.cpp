@@ -192,6 +192,15 @@ uint64_t PendingTransactionImpl::fee() const
     return result;
 }
 
+uint64_t PendingTransactionImpl::weight(int index) const
+{
+    auto index_ = static_cast<unsigned>(index);
+    if (index < 0 || index_ >= m_pending_tx.size()) {
+        return 0;
+    }
+    return cryptonote::get_transaction_weight(m_pending_tx[index].tx);
+}
+
 uint64_t PendingTransactionImpl::txCount() const
 {
     return m_pending_tx.size();
