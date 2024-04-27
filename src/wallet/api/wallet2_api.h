@@ -140,6 +140,7 @@ struct PendingTransaction
     virtual uint64_t amount() const = 0;
     virtual uint64_t dust() const = 0;
     virtual uint64_t fee() const = 0;
+    virtual uint64_t weight(int index) const = 0;
     virtual std::vector<std::string> txid() const = 0;
     /*!
      * \brief txCount - number of transactions current transaction will be splitted to
@@ -758,7 +759,8 @@ struct Wallet
                                                    optional<std::vector<uint64_t>> amount, uint32_t mixin_count,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low,
                                                    uint32_t subaddr_account = 0,
-                                                   std::set<uint32_t> subaddr_indices = {}, const std::set<std::string> &preferred_inputs = {}) = 0;
+                                                   std::set<uint32_t> subaddr_indices = {}, const std::set<std::string> &preferred_inputs = {},
+                                                   bool subtractFeeFromAmount = false) = 0;
 
     /*!
      * \brief createTransaction creates transaction. if dst_addr is an integrated address, payment_id is ignored
@@ -778,7 +780,8 @@ struct Wallet
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low,
                                                    uint32_t subaddr_account = 0,
                                                    std::set<uint32_t> subaddr_indices = {},
-                                                   const std::set<std::string> &preferred_inputs = {}) = 0;
+                                                   const std::set<std::string> &preferred_inputs = {},
+                                                   bool subtractFeeFromAmount = false) = 0;
 
     /*!
      * \brief createTransactionSingle creates transaction with single input

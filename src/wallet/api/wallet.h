@@ -165,13 +165,15 @@ public:
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {},
-                                        const std::set<std::string> &preferred_inputs = {}) override;
+                                        const std::set<std::string> &preferred_inputs = {},
+                                        bool subtractFeeFromAmount = false) override;
     PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
                                         optional<uint64_t> amount, uint32_t mixin_count,
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {},
-                                        const std::set<std::string> &preferred_inputs = {}) override;
+                                        const std::set<std::string> &preferred_inputs = {},
+                                        bool subtractFeeFromAmount = false) override;
 
     PendingTransaction * createTransactionSingle(const std::string &key_image, const std::string &dst_addr,
             size_t outputs = 1, PendingTransaction::Priority priority = PendingTransaction::Priority_Low) override;
