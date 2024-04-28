@@ -4359,9 +4359,6 @@ void wallet2::check_rct_distribution() {
     THROW_WALLET_EXCEPTION_IF(offsets_hash != checkpoint_hash, error::wallet_internal_error, "Output distribution hash does not match checkpoint hash. "
                                                                                              "Offset hash: " + epee::string_tools::pod_to_hex(offsets_hash) +
                                                                                              ", Checkpoint hash: " + epee::string_tools::pod_to_hex(checkpoint_hash));
-
-    // sanity check
-    THROW_WALLET_EXCEPTION_IF(m_rct_offsets.offsets().back() >= OUTPUT_DISTRIBUTION_MAX_OUTPUT_SUM, error::wallet_internal_error, "Unrealistic number of outputs in output distribution");
 }
 
 //----------------------------------------------------------------------------------------------------
