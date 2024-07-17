@@ -83,6 +83,12 @@ public:
     bool recoverFromDevice(const std::string &path,
                            const std::string &password,
                            const std::string &device_name);
+
+    bool recoverMultisigWallet(const std::string &path,
+                               const std::string &password,
+                               const std::string &multisigSeed,
+                               const std::string &mmsRecovery);
+
     Device getDeviceType() const override;
     bool close(bool store = true);
     std::string seed(const std::string& seed_offset = "") const override;

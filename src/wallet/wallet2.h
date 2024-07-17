@@ -927,6 +927,9 @@ private:
      */
     void restore(const std::string& wallet_, const epee::wipeable_string& password, const std::string &device_name, bool create_address_file = false);
 
+    std::string get_multisig_signer_init();
+//    bool process_multisig_signer_init(const std::string &signer_init);
+
     /*!
      * \brief Creates a multisig wallet
      * \return empty if done, non empty if we need to send another string
@@ -1133,6 +1136,7 @@ private:
 
     // Check if wallet cache contains txid
     bool have_tx(crypto::hash txid);
+    bool have_tx_prefix(crypto::hash prefix_hash);
 
     void commit_tx(pending_tx& ptx_vector);
     void commit_tx(std::vector<pending_tx>& ptx_vector);
@@ -1761,6 +1765,10 @@ private:
     mms::message_store& get_message_store() { return m_message_store; };
     const mms::message_store& get_message_store() const { return m_message_store; };
     mms::multisig_wallet_state get_multisig_wallet_state() const;
+    std::uint32_t get_multisig_setup_rounds_required() const;
+    uint32_t get_multisig_signers() const {return m_multisig_signers.size();};
+
+    std::string get_signer_label(const crypto::public_key &key);
 
     bool lock_keys_file();
     bool unlock_keys_file();
@@ -1904,6 +1912,8 @@ private:
 
     bool should_expand(const cryptonote::subaddress_index &index) const;
     bool spends_one_of_ours(const cryptonote::transaction &tx) const;
+
+
 
     cryptonote::account_base m_account;
     boost::optional<epee::net_utils::http::login> m_daemon_login;

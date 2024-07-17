@@ -79,6 +79,14 @@ std::vector<std::string> PendingTransactionImpl::txid() const
     return txid;
 }
 
+std::vector<std::string> PendingTransactionImpl::prefixHashes() const
+{
+    std::vector<std::string> phash;
+    for (const auto &pt : m_pending_tx)
+        phash.push_back(epee::string_tools::pod_to_hex(cryptonote::get_transaction_prefix_hash(pt.tx)));
+    return phash;
+}
+
 bool PendingTransactionImpl::commit(const std::string &filename, bool overwrite)
 {
 
@@ -149,7 +157,7 @@ bool PendingTransactionImpl::commit(const std::string &filename, bool overwrite)
         m_status = Status_Error;
         m_errorString = writer.str();
         if (!reason.empty())
-          m_errorString  += string(tr(". Reason: ")) + reason;
+          m_errorString += string(tr(". Reason: ")) + reason;
     } catch (const std::exception &e) {
         m_errorString = string(tr("Unknown exception: ")) + e.what();
         m_status = Status_Error;
@@ -310,5 +318,91 @@ std::vector<PendingTransactionInfo*> PendingTransactionImpl::getAll() const {
     return m_pending_tx_info;
 }
 
+uint32_t PendingTransactionImpl::saveToMMS() {
+    auto multisigState = m_wallet.multisig();
+    if (!multisigState.isMultisig) {
+        return false;
+    }
+
+    std::string ciphertext = m_wallet.m_wallet->save_multisig_tx(m_pending_tx);
+    // TODO: check if ciphertext is empty
+
+    std::vector<uint32_t> message_ids;
+    m_wallet.m_wallet->get_message_store().process_wallet_created_data(m_wallet.m_wallet->get_multisig_wallet_state(), mms::message_type::partially_signed_tx, ciphertext, message_ids);
+    return message_ids[0];
+}
+
+std::vector<std::string> PendingTransactionImpl::destinations(int index) const {
+    auto index_ = static_cast<unsigned>(index);
+    if (index < 0 || index_ >= m_pending_tx.size()) {
+        return {};
+    }
+
+    std::vector<std::string> dests;
+    auto tx = m_pending_tx[index_];
+    for (const auto &dest : tx.dests) {
+        // TODO: payment id?
+        dests.push_back(dest.address(m_wallet.m_wallet->nettype(), crypto::null_hash));
+    }
+    return dests;
+}
+
+uint64_t PendingTransactionImpl::signaturesNeeded() const {
+    auto multisigState = m_wallet.multisig();
+    if (!multisigState.isMultisig) {
+        return 0;
+    }
+    if (m_signers.size() > multisigState.threshold) {
+        return 0;
+    }
+    return multisigState.threshold - m_signers.size();
+}
+
+bool PendingTransactionImpl::enoughMultisigSignatures() const {
+    auto multisigState = m_wallet.multisig();
+    if (multisigState.isMultisig && m_signers.size() < multisigState.threshold) {
+        return false;
+    }
+    return true;
+}
+
+bool PendingTransactionImpl::haveWeSigned() const {
+    const crypto::public_key local_signer = m_wallet.m_wallet->get_multisig_signer_public_key();
+
+    return m_signers.find(local_signer) != m_signers.end();
+}
+
+bool PendingTransactionImpl::canSign() const {
+    LOG_ERROR("Can we sign this tx?");
+
+    const crypto::public_key local_signer = m_wallet.m_wallet->get_multisig_signer_public_key();
+
+    // We already signed this transaction
+    if (m_signers.find(local_signer) != m_signers.end()) {
+        return false;
+    }
+
+    for (const auto& i : m_pending_tx[0].construction_data.selected_transfers) {
+        auto td = m_wallet.m_wallet->get_transfer_details(i);
+
+        for (auto &sig: m_pending_tx[0].multisig_sigs) {
+            if (sig.ignore.find(local_signer) == sig.ignore.end()) {
+                for (auto &k: td.m_multisig_k) {
+                    if (k == rct::zero())
+                        continue;
+
+                    // TODO: L can only be used once, so we need to keep track
+                    rct::key L;
+                    rct::scalarmultBase(L, k);
+                    if (sig.used_L.find(L) != sig.used_L.end()) {
+                        break;
+                    }
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
 
 }

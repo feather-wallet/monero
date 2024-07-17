@@ -51,6 +51,7 @@ public:
     uint64_t dust() const override;
     uint64_t fee() const override;
     std::vector<std::string> txid() const override;
+    std::vector<std::string> prefixHashes() const override;
     uint64_t txCount() const override;
     std::vector<uint32_t> subaddrAccount() const override;
     std::vector<std::set<uint32_t>> subaddrIndices() const override;
@@ -61,12 +62,20 @@ public:
     void refresh() override;
     std::vector<PendingTransactionInfo*> getAll() const override;
     PendingTransactionInfo * transaction(int index) const override;
+    std::vector<std::string> destinations(int index) const override;
+    uint64_t signaturesNeeded() const override;
+    bool enoughMultisigSignatures() const override;
     // TODO: continue with interface;
 
+    uint32_t saveToMMS() override;
     std::string multisigSignData() override;
     void signMultisigTx() override;
     std::vector<std::string> signersKeys() const override;
     const std::exception_ptr getException() const { return exception; }
+
+    bool haveWeSigned() const;
+    bool canSign() const;
+    const std::vector<tools::wallet2::pending_tx>& getPendingTx();
 
 private:
     friend class WalletImpl;

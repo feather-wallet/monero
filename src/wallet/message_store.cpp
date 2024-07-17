@@ -43,6 +43,7 @@
 #include "common/util.h"
 #include "common/utf8.h"
 #include "string_tools.h"
+#include "string_coding.h"
 
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -62,30 +63,14 @@ message_store::message_store(std::unique_ptr<epee::net_utils::http::abstract_htt
   m_run = true;
 }
 
-namespace
+void message_store::init_from_setup_key(const multisig_wallet_state &state, const std::string &auto_config_token, const std::string &own_label)
 {
-  // MMS options handling mirrors what "wallet2" is doing for its options, on-demand init and all
-  // It's not very clean to initialize Bitmessage-specific options here, but going one level further
-  // down still into "message_transporter" for that is a little bit too much
-  struct options
-  {
-    const command_line::arg_descriptor<std::string> bitmessage_address = {"bitmessage-address", mms::message_store::tr("Use PyBitmessage instance at URL <arg>"), "http://localhost:8442/"};
-    const command_line::arg_descriptor<std::string> bitmessage_login = {"bitmessage-login", mms::message_store::tr("Specify <arg> as username:password for PyBitmessage API"), "username:password"};
-  };
-}
+  setup_key key;
+  bool valid_setup_key = check_auto_config_token(auto_config_token, key);
+  THROW_WALLET_EXCEPTION_IF(!valid_setup_key, tools::error::wallet_internal_error, "Invalid setup key");
 
-void message_store::init_options(boost::program_options::options_description& desc_params)
-{
-  const options opts{};
-  command_line::add_arg(desc_params, opts.bitmessage_address);
-  command_line::add_arg(desc_params, opts.bitmessage_login);
-}
-
-void message_store::init(const multisig_wallet_state &state, const std::string &own_label,
-                         const std::string &own_transport_address, uint32_t num_authorized_signers, uint32_t num_required_signers)
-{
-  m_num_authorized_signers = num_authorized_signers;
-  m_num_required_signers = num_required_signers;
+  m_num_required_signers = key.threshold;
+  m_num_authorized_signers = key.participants;
   m_signers.clear();
   m_messages.clear();
   m_next_message_id = 1;
@@ -101,7 +86,24 @@ void message_store::init(const multisig_wallet_state &state, const std::string &
     signer.index++;
   }
 
-  set_signer(state, 0, own_label, own_transport_address, state.address);
+  // the label gets set later
+  authorized_signer &me = m_signers[0];
+  crypto::generate_keys(me.public_key, me.secret_key);
+  me.public_key_known = true;
+
+  set_signer(state, 0, own_label, {});
+
+  m_service_url = key.service_url;
+  m_service_channel = key.service_channel;
+
+  m_transporter.set_options(key.service_url, {});
+
+  if (key.mode == setup_mode::automatic) {
+    // TODO: make sure this gets wiped when we no longer need it
+    m_auto_config_secret_key = key.key;
+    crypto::secret_key_to_public_key(m_auto_config_secret_key , m_auto_config_public_key);
+    m_auto_config_running = true;
+  }
 
   m_nettype = state.nettype;
   set_active(true);
@@ -109,24 +111,108 @@ void message_store::init(const multisig_wallet_state &state, const std::string &
   save(state);
 }
 
-void message_store::set_options(const boost::program_options::variables_map& vm)
-{
-  const options opts{};
-  std::string bitmessage_address = command_line::get_arg(vm, opts.bitmessage_address);
-  epee::wipeable_string bitmessage_login = command_line::get_arg(vm, opts.bitmessage_login);
-  set_options(bitmessage_address, bitmessage_login);
+void message_store::init_from_recovery(const mms::multisig_wallet_state &state, const std::string &recovery, uint32_t signers, uint32_t total) {
+    std::string prefix(RECOVERY_INFO_PREFIX);
+    std::string recovery_sub(recovery.substr(prefix.length()));
+    std::string decoded;
+    bool r = tools::base58::decode(recovery_sub, decoded);
+    THROW_WALLET_EXCEPTION_IF(!r, tools::error::wallet_internal_error, "Unable to decode recovery info");
+
+    recovery_info info;
+    try
+    {
+        binary_archive<false> ar{epee::strspan<std::uint8_t>(decoded)};
+        THROW_WALLET_EXCEPTION_IF(!::serialization::serialize(ar, info), tools::error::wallet_internal_error, "Failed to deserialize MMS recovery info");
+    }
+    catch (...)
+    {
+        THROW_WALLET_EXCEPTION_IF(true, tools::error::wallet_internal_error, "Invalid structure of MMS recovery info");
+    }
+
+    m_num_required_signers = signers;
+    m_num_authorized_signers = total;
+    m_signers.clear();
+    m_messages.clear();
+    m_next_message_id = 1;
+
+    authorized_signer signer;
+    for (uint32_t i = 0; i < m_num_authorized_signers; ++i)
+    {
+        signer.me = signer.index == 0;
+        m_signers.push_back(signer);
+        signer.index++;
+    }
+
+
+    m_service_url = info.service_url;
+    m_service_channel = info.service_channel;
+    m_service_token = info.service_token;
+    m_transporter.set_options(info.service_url, {});
+
+    THROW_WALLET_EXCEPTION_IF(info.signer_info.size() != m_num_authorized_signers, tools::error::wallet_internal_error, "MMS recovery info does not contain enough signer info");
+
+    authorized_signer &me = m_signers[0];
+    me.secret_key = info.secret_key;
+
+    // TODO: check if secret_key matches public_key
+
+    for (size_t i = 0; i < m_num_authorized_signers; ++i) {
+        authorized_signer &s = m_signers[i];
+        auto_config_data &m = info.signer_info[i];
+
+        s.label = m.label;
+        s.public_key = m.public_key;
+        s.public_key_known = true;
+    }
+
+    // TODO: verify the number of signers match m_num_authorized_signers
+
+    m_nettype = state.nettype;
+    set_active(true);
+    m_filename = state.mms_file;
+    save(state);
 }
 
-void message_store::set_options(const std::string &bitmessage_address, const epee::wipeable_string &bitmessage_login)
+void message_store::set_service_details(const std::string &message_service_address, const epee::wipeable_string &message_service_login)
 {
-  m_transporter.set_options(bitmessage_address, bitmessage_login);
+  // TODO: only the key creator should call this
+  m_transporter.set_options(message_service_address, message_service_login);
+}
+
+std::string message_store::get_recovery_info(const multisig_wallet_state &state, uint64_t restore_height) {
+  recovery_info info;
+
+  authorized_signer &me = m_signers[0];
+  info.secret_key = me.secret_key;
+
+  info.service_url = m_service_url;
+  info.service_channel = m_service_channel;
+  info.service_token = m_service_token;
+
+  info.restore_height = restore_height;
+
+  for (size_t i = 0; i < m_num_authorized_signers; i++) {
+      const authorized_signer &signer = m_signers[i];
+
+      auto_config_data data;
+      data.public_key = signer.public_key;
+      data.label = signer.label;
+
+      info.signer_info.push_back(data);
+  }
+
+  std::stringstream oss;
+  binary_archive<true> ar(oss);
+  THROW_WALLET_EXCEPTION_IF(!::serialization::serialize(ar, info), tools::error::wallet_internal_error, "Failed to serialize recovery info");
+  std::string buf = oss.str();
+
+  return RECOVERY_INFO_PREFIX + tools::base58::encode(buf);
 }
 
 void message_store::set_signer(const multisig_wallet_state &state,
                                uint32_t index,
                                const boost::optional<std::string> &label,
-                               const boost::optional<std::string> &transport_address,
-                               const boost::optional<cryptonote::account_public_address> monero_address)
+                               const boost::optional<crypto::public_key> &public_key)
 {
   THROW_WALLET_EXCEPTION_IF(index >= m_num_authorized_signers, tools::error::wallet_internal_error, "Invalid signer index " + std::to_string(index));
   authorized_signer &m = m_signers[index];
@@ -134,16 +220,12 @@ void message_store::set_signer(const multisig_wallet_state &state,
   {
     m.label = get_sanitized_text(label.get(), 50);
   }
-  if (transport_address)
+  if (public_key)
   {
-    m.transport_address = get_sanitized_text(transport_address.get(), 200);
+    m.public_key_known = true;
+    m.public_key = public_key.get();
   }
-  if (monero_address)
-  {
-    m.monero_address_known = true;
-    m.monero_address = monero_address.get();
-  }
-  // Save to minimize the chance to loose that info
+  // Save to minimize the chance to lose that info
   save(state);
 }
 
@@ -158,7 +240,20 @@ bool message_store::signer_config_complete() const
   for (uint32_t i = 0; i < m_num_authorized_signers; ++i)
   {
     const authorized_signer &m = m_signers[i];
-    if (m.label.empty() || m.transport_address.empty() || !m.monero_address_known)
+    if (m.label.empty() || !m.public_key_known)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool message_store::signer_keys_complete() const
+{
+  for (uint32_t i = 0; i < m_num_authorized_signers; ++i)
+  {
+    const authorized_signer &m = m_signers[i];
+    if (!m.public_key_known)
     {
       return false;
     }
@@ -189,194 +284,286 @@ void message_store::get_signer_config(std::string &signer_config)
   signer_config = oss.str();
 }
 
-void message_store::unpack_signer_config(const multisig_wallet_state &state, const std::string &signer_config,
-                                         std::vector<authorized_signer> &signers)
-{
-  try
-  {
-    binary_archive<false> ar{epee::strspan<std::uint8_t>(signer_config)};
-    THROW_WALLET_EXCEPTION_IF(!::serialization::serialize(ar, signers), tools::error::wallet_internal_error, "Failed to serialize signer config");
-  }
-  catch (...)
-  {
-    THROW_WALLET_EXCEPTION_IF(true, tools::error::wallet_internal_error, "Invalid structure of signer config");
-  }
-  uint32_t num_signers = (uint32_t)signers.size();
-  THROW_WALLET_EXCEPTION_IF(num_signers != m_num_authorized_signers, tools::error::wallet_internal_error, "Wrong number of signers in config: " + std::to_string(num_signers));
-  for (uint32_t i = 0; i < num_signers; ++i)
-  {
-    authorized_signer &m = signers[i];
-    m.label = get_sanitized_text(m.label, 50);
-    m.transport_address = get_sanitized_text(m.transport_address, 200);
-    m.auto_config_token = get_sanitized_text(m.auto_config_token, 20);
-  }
-}
-
-void message_store::process_signer_config(const multisig_wallet_state &state, const std::string &signer_config)
-{
-  // The signers in "signer_config" and the resident wallet signers are matched not by label, but
-  // by Monero address, and ALL labels will be set from "signer_config", even the "me" label.
-  // In the auto-config process as implemented now the auto-config manager is responsible for defining
-  // the labels, and right at the end of the process ALL wallets use the SAME labels. The idea behind this
-  // is preventing problems like duplicate labels and confusion (Bob choosing a label "IamAliceHonest").
-  // (Of course signers are free to re-define any labels they don't like AFTER auto-config.)
-  //
-  // Usually this method will be called with only the "me" signer defined in the wallet, and may
-  // produce unexpected behaviour if that wallet contains additional signers that have nothing to do with
-  // those arriving in "signer_config".
-  std::vector<authorized_signer> signers;
-  unpack_signer_config(state, signer_config, signers);
-  
-  uint32_t new_index = 1;
-  for (uint32_t i = 0; i < m_num_authorized_signers; ++i)
-  {
-    const authorized_signer &m = signers[i];
-    uint32_t index;
-    uint32_t take_index;
-    bool found = get_signer_index_by_monero_address(m.monero_address, index);
-    if (found)
-    {
-      // Redefine existing (probably "me", under usual circumstances)
-      take_index = index;
-    }
-    else
-    {
-      // Add new; neglect that we may erroneously overwrite already defined signers
-      // (but protect "me")
-      take_index = new_index;
-      if ((new_index + 1) < m_num_authorized_signers)
-      {
-        new_index++;
-      }
-    }
-    authorized_signer &modify = m_signers[take_index];
-    modify.label = get_sanitized_text(m.label, 50);  // ALWAYS set label, see comments above
-    if (!modify.me)
-    {
-      modify.transport_address = get_sanitized_text(m.transport_address, 200);
-      modify.monero_address_known = m.monero_address_known;
-      if (m.monero_address_known)
-      {
-        modify.monero_address = m.monero_address;
-      }
-    }
-  }
-  save(state);
-}
-
-void message_store::start_auto_config(const multisig_wallet_state &state)
-{
-  for (uint32_t i = 0; i < m_num_authorized_signers; ++i)
-  {
-    authorized_signer &m = m_signers[i];
-    if (!m.me)
-    {
-      setup_signer_for_auto_config(i, create_auto_config_token(), true);
-    }
-    m.auto_config_running = true;
-  }
-  save(state);
-}
-
 // Check auto-config token string and convert to standardized form;
 // Try to make it as foolproof as possible, with built-in tolerance to make up for
 // errors in transmission that still leave the token recognizable.
 bool message_store::check_auto_config_token(const std::string &raw_token,
-                                            std::string &adjusted_token) const
+                                            setup_key &key) const
 {
   std::string prefix(AUTO_CONFIG_TOKEN_PREFIX);
-  uint32_t num_hex_digits = (AUTO_CONFIG_TOKEN_BYTES + 1) * 2;
+  uint32_t num_hex_digits = (AUTO_CONFIG_TOKEN_BYTES + 2) * 2;
   uint32_t full_length = num_hex_digits + prefix.length();
   uint32_t raw_length = raw_token.length();
   std::string hex_digits;
 
-  if (raw_length == full_length)
-  {
-    // Prefix must be there; accept it in any casing
-    std::string raw_prefix(raw_token.substr(0, 3));
-    boost::algorithm::to_lower(raw_prefix);
-    if (raw_prefix != prefix)
-    {
-      return false;
-    }
-    hex_digits = raw_token.substr(3);
-  }
-  else if (raw_length == num_hex_digits)
-  {
-    // Accept the token without the prefix if it's otherwise ok
-    hex_digits = raw_token;
-  }
-  else
+  // Prefix must be there; accept it in any casing
+  std::string raw_prefix(raw_token.substr(0, 3));
+  boost::algorithm::to_lower(raw_prefix);
+  if (raw_prefix != prefix)
   {
     return false;
   }
 
-  // Convert to strict lowercase and correct any common misspellings
-  boost::algorithm::to_lower(hex_digits);
-  std::replace(hex_digits.begin(), hex_digits.end(), 'o', '0');
-  std::replace(hex_digits.begin(), hex_digits.end(), 'i', '1');
-  std::replace(hex_digits.begin(), hex_digits.end(), 'l', '1');
+  std::string base58 = raw_token.substr(3);
 
-  // Now it must be correct hex with correct checksum, no further tolerance possible
-  std::string token_bytes;
-  if (!epee::string_tools::parse_hexstr_to_binbuff(hex_digits, token_bytes))
-  {
+  std::string decoded;
+  bool ok = tools::base58::decode(base58, decoded);
+
+  if (!ok) {
     return false;
   }
-  const crypto::hash &hash = crypto::cn_fast_hash(token_bytes.data(), token_bytes.size() - 1);
-  if (token_bytes[AUTO_CONFIG_TOKEN_BYTES] != hash.data[0])
-  {
+
+  std::string hash_str = decoded.substr(decoded.length() - 2, 2);
+  std::string uniform = decoded.substr(0, decoded.length() - 2);
+
+  crypto::chacha_key k;
+  crypto::generate_chacha_key(hash_str.data(), hash_str.size(), k, 1);
+
+  std::string query;
+  query.resize(uniform.size());
+  crypto::chacha_iv iv = {0};
+  crypto::chacha20(uniform.data(), uniform.size(), k, iv, &query[0]);
+
+  binary_archive<false> ar{epee::strspan<std::uint8_t>(query)};
+  if (!::serialization::serialize(ar, key)) {
     return false;
   }
-  adjusted_token = prefix + hex_digits;
+
+  //
+  // bool r = epee::serialization::load_t_from_binary(key, query);
+  //
+  // if (!r) {
+  //   return false;
+  // }
+
+  // // Now it must be correct hex with correct checksum, no further tolerance possible
+  // std::string token_bytes;
+  // if (!epee::string_tools::parse_hexstr_to_binbuff(hex_digits, token_bytes))
+  // {
+  //   return false;
+  // }
+  // const crypto::hash &hash = crypto::cn_fast_hash(token_bytes.data(), token_bytes.size() - 2);
+  // if (token_bytes[AUTO_CONFIG_TOKEN_BYTES] != hash.data[0])
+  // {
+  //   return false;
+  // }
+  // adjusted_token = prefix + hex_digits;
+
+  // threshold = key.threshold;
+  // total = key.participants;
+  //
+  // if (threshold < 1) {
+  //   return false;
+  // }
+  //
+  // if (total < threshold) {
+  //   return false;
+  // }
+  //
+  // if (threshold > 16) {
+  //   return false;
+  // }
+
   return true;
 }
 
-// Create a new auto-config token with prefix, random 8-hex digits plus 2 checksum digits
-std::string message_store::create_auto_config_token()
-{
-  unsigned char random[AUTO_CONFIG_TOKEN_BYTES];
-  crypto::rand(AUTO_CONFIG_TOKEN_BYTES, random);
-  std::string token_bytes;
-  token_bytes.append((char *)random, AUTO_CONFIG_TOKEN_BYTES);
+bool message_store::register_channel(std::string &channel, uint32_t user_limit) {
+  return m_transporter.register_channel(channel, user_limit);
+}
 
-  // Add a checksum because technically ANY four bytes are a valid token, and without a checksum we would send
-  // auto-config messages "to nowhere" after the slightest typo without knowing it
-  const crypto::hash &hash = crypto::cn_fast_hash(token_bytes.data(), token_bytes.size());
-  token_bytes += hash.data[0];
-  std::string prefix(AUTO_CONFIG_TOKEN_PREFIX);
-  return prefix + epee::string_tools::buff_to_hex_nodelimer(token_bytes);
+bool message_store::register_user() {
+  if (!m_service_token.empty()) {
+    return true;
+  }
+
+  authorized_signer &me = m_signers[0];
+  m_transporter.register_user(m_service_channel, epee::string_tools::pod_to_hex(me.public_key), m_service_token);
+
+  return true;
+}
+
+bool message_store::get_channel_users(const multisig_wallet_state &state, uint32_t &num_users) {
+  if (signer_keys_complete()) {
+    return true;
+  }
+
+  authorized_signer &me = m_signers[0];
+  std::vector<std::string> users = m_transporter.get_channel_users(m_service_channel, m_service_token);
+
+  num_users = users.size();
+
+  std::vector<crypto::public_key> filtered_keys;
+  for (const auto &user : users) {
+    crypto::public_key key;
+    THROW_WALLET_EXCEPTION_IF(!epee::string_tools::hex_to_pod(user, key), tools::error::wallet_internal_error, "Invalid user in channel");
+
+    if (me.public_key == key) {
+      continue;
+    }
+
+    filtered_keys.push_back(key);
+  }
+
+  if (filtered_keys.size() != (m_num_authorized_signers - 1)) {
+    // TODO: inform GUI about lack of signers
+    return false;
+  }
+
+  for (size_t i = 1; i < m_num_authorized_signers; i++) {
+    authorized_signer &signer = m_signers[i];
+    signer.public_key = filtered_keys[i-1];
+    signer.public_key_known = true;
+  }
+
+  add_auto_config_data_messages(state);
+
+  return true;
+}
+
+// Create a new setup key
+std::string message_store::create_setup_key(uint32_t threshold, uint32_t total, const std::string &service, const std::string &channel, setup_mode mode) {
+  THROW_WALLET_EXCEPTION_IF(threshold < 1, tools::error::wallet_internal_error, "Threshold can't be zero");
+  THROW_WALLET_EXCEPTION_IF(total < threshold, tools::error::wallet_internal_error, "Total number of signers can't be lower than threshold");
+  THROW_WALLET_EXCEPTION_IF(threshold > 16, tools::error::wallet_internal_error, "Threshold can't exceed 16");
+  THROW_WALLET_EXCEPTION_IF(total > 255, tools::error::wallet_internal_error, "Total number of signers can't exceed 255");
+
+  setup_key key;
+  key.mode = mode;
+  key.threshold = threshold;
+  key.participants = total;
+  key.service_url = service;
+  key.service_channel = channel;
+  key.key = rct::rct2sk(rct::skGen());
+
+  // std::string query;
+  // query += "v=0";
+  // query += "&t=" + std::to_string(threshold);
+  // query += "&p=" + std::to_string(total);
+  // query += "&c=" + channel;
+  // query += "&k=" + epee::string_tools::pod_to_hex(me.auto_config_public_key);
+  // query += "&s=" + service;
+
+  std::stringstream oss;
+  binary_archive<true> ar(oss);
+  THROW_WALLET_EXCEPTION_IF(!::serialization::serialize(ar, key), tools::error::wallet_internal_error, "Failed to serialize setup key");
+
+  std::string query = oss.str();
+
+  LOG_ERROR(query);
+
+  std::string hash_str;
+  const crypto::hash &hash = crypto::cn_fast_hash(query.data(), query.size());
+  hash_str += hash.data[0];
+  hash_str += hash.data[1];
+
+  crypto::chacha_key k;
+  crypto::generate_chacha_key(hash_str.data(), hash_str.size(), k, 1);
+
+  std::string uniform;
+  uniform.resize(query.size());
+  crypto::chacha_iv iv = {0};
+  crypto::chacha20(query.data(), query.size(), k, iv, &uniform[0]);
+
+  return AUTO_CONFIG_TOKEN_PREFIX + tools::base58::encode(uniform + hash_str);
 }
 
 // Add a message for sending "me" address data to the auto-config transport address
 // that can be derived from the token and activate auto-config
-size_t message_store::add_auto_config_data_message(const multisig_wallet_state &state,
-                                                   const std::string &auto_config_token)
+size_t message_store::add_auto_config_data_messages(const multisig_wallet_state &state)
 {
   authorized_signer &me = m_signers[0];
-  me.auto_config_token = auto_config_token;
-  setup_signer_for_auto_config(0, auto_config_token, false);
-  me.auto_config_running = true;
 
+  for (uint32_t i = 1; i < m_num_authorized_signers; ++i)
+  {
+    auto_config_data data;
+    data.label = me.label;
+    data.public_key = me.public_key;
+
+    std::stringstream oss;
+    binary_archive<true> ar(oss);
+    THROW_WALLET_EXCEPTION_IF(!::serialization::serialize(ar, data), tools::error::wallet_internal_error, "Failed to serialize auto config data");
+
+    add_message(state, i, message_type::auto_config_data, message_direction::out, oss.str());
+  }
+
+  return 0;
+}
+
+auto_config_data message_store::get_auto_config_data(uint32_t id)
+{
+  const message &m = get_message_ref_by_id(id);
   auto_config_data data;
-  data.label = me.label;
-  data.transport_address = me.transport_address;
-  data.monero_address = me.monero_address;
+  try
+  {
+    binary_archive<false> ar{epee::strspan<std::uint8_t>(m.content)};
+    THROW_WALLET_EXCEPTION_IF(!::serialization::serialize(ar, data), tools::error::wallet_internal_error, "Failed to serialize auto config data");
+  }
+  catch (...)
+  {
+    THROW_WALLET_EXCEPTION_IF(true, tools::error::wallet_internal_error, "Invalid structure of auto config data");
+  }
+  return data;
+}
 
-  std::stringstream oss;
-  binary_archive<true> ar(oss);
-  THROW_WALLET_EXCEPTION_IF(!::serialization::serialize(ar, data), tools::error::wallet_internal_error, "Failed to serialize auto config data");
+std::vector<auto_config_data> message_store::get_auto_config_data()
+{
+  std::vector<auto_config_data> data;
 
-  return add_message(state, 0, message_type::auto_config_data, message_direction::out, oss.str());
+  std::vector<crypto::public_key> public_keys;
+
+  for (const auto &m : m_messages)
+  {
+    if ((m.type == message_type::auto_config_data))
+    {
+      auto d = get_auto_config_data(m.id);
+
+      if (std::find(public_keys.begin(), public_keys.end(), d.public_key) != public_keys.end()) {
+        continue;
+      }
+
+      public_keys.push_back(d.public_key);
+      data.push_back(d);
+    }
+  }
+
+  return data;
+}
+
+bool message_store::auto_config_data_complete(std::vector<uint32_t> &auto_config_messages)
+{
+  std::vector<uint32_t> filtered_messages;
+  std::vector<crypto::public_key> public_keys;
+
+  for (size_t i = 0; i < auto_config_messages.size(); i++)
+  {
+    auto data = get_auto_config_data(auto_config_messages[i]);
+
+    // Don't include ourselves
+    if (data.public_key == m_signers[0].public_key) {
+      continue;
+    }
+
+    // Don't include duplicates
+    if (std::find(public_keys.begin(), public_keys.end(), data.public_key) != public_keys.end()) {
+      continue;
+    }
+
+    public_keys.push_back(data.public_key);
+    filtered_messages.push_back(auto_config_messages[i]);
+  }
+
+  // TODO: if there are more messages than authorized signers throw some kind of error and abort setup
+  if (filtered_messages.size() != (m_num_authorized_signers - 1)) {
+    return false;
+  }
+
+  auto_config_messages = filtered_messages;
+  return true;
 }
 
 // Process a single message with auto-config data, destined for "message.signer_index"
 void message_store::process_auto_config_data_message(uint32_t id)
 {
-  // "auto_config_data" contains the label that the auto-config data sender uses for "me", but that's
-  // more for completeness' sake, and right now it's not used. In general, the auto-config manager
-  // decides/defines the labels, and right after completing auto-config ALL wallets use the SAME labels.
-
   const message &m = get_message_ref_by_id(id);
 
   auto_config_data data;
@@ -390,12 +577,20 @@ void message_store::process_auto_config_data_message(uint32_t id)
     THROW_WALLET_EXCEPTION_IF(true, tools::error::wallet_internal_error, "Invalid structure of auto config data");
   }
 
-  authorized_signer &signer = m_signers[m.signer_index];
-  // "signer.label" does NOT change, see comment above
-  signer.transport_address = data.transport_address;
-  signer.monero_address_known = true;
-  signer.monero_address = data.monero_address;
-  signer.auto_config_running = false;
+  if (data.public_key == m_signers[0].public_key) {
+    return;
+  }
+
+  uint32_t index;
+  bool r =  get_signer_index_by_public_key(data.public_key, index);
+  // TODO: make sure this call succeeds
+
+
+  authorized_signer &signer = m_signers[index];
+  signer.public_key_known = true;
+  signer.public_key = data.public_key;
+  MWARNING("Setting signer public key to: " << epee::string_tools::pod_to_hex(data.public_key));
+  signer.label = data.label;
 }
 
 void add_hash(crypto::hash &sum, const crypto::hash &summand)
@@ -422,11 +617,9 @@ std::string message_store::get_config_checksum() const
   for (uint32_t i = 0; i < m_num_authorized_signers; ++i)
   {
     const authorized_signer &m = m_signers[i];
-    add_hash(sum, crypto::cn_fast_hash(m.transport_address.data(), m.transport_address.size()));
-    if (m.monero_address_known)
+    if (m.public_key_known)
     {
-      add_hash(sum, crypto::cn_fast_hash(&m.monero_address.m_spend_public_key, sizeof(m.monero_address.m_spend_public_key)));
-      add_hash(sum, crypto::cn_fast_hash(&m.monero_address.m_view_public_key, sizeof(m.monero_address.m_view_public_key)));
+      add_hash(sum, crypto::cn_fast_hash(&m.public_key, sizeof(m.public_key)));
     }
   }
   std::string checksum_bytes;
@@ -439,55 +632,24 @@ std::string message_store::get_config_checksum() const
 
 void message_store::stop_auto_config()
 {
-  for (uint32_t i = 0; i < m_num_authorized_signers; ++i)
-  {
-    authorized_signer &m = m_signers[i];
-    if (!m.auto_config_transport_address.empty())
-    {
-      // Try to delete the chan that was used for auto-config
-      m_transporter.delete_transport_address(m.auto_config_transport_address);
-    }
-    m.auto_config_token.clear();
-    m.auto_config_public_key = crypto::null_pkey;
-    m.auto_config_secret_key = crypto::null_skey;
-    m.auto_config_transport_address.clear();
-    m.auto_config_running = false;
-  }  
+  authorized_signer &me = m_signers[0];
+  m_auto_config_running = false;
+  m_auto_config_secret_key = crypto::null_skey;
 }
 
-void message_store::setup_signer_for_auto_config(uint32_t index, const std::string token, bool receiving)
-{
-  // It may be a little strange to hash the textual hex digits of the auto config token into
-  // 32 bytes and turn that into a Monero public/secret key pair, instead of doing something
-  // much less complicated like directly using the underlying random 40 bits as key for a
-  // symmetric cipher, but everything is there already for encrypting and decrypting messages
-  // with such key pairs, and furthermore it would be trivial to use tokens with a different
-  // number of bytes.
-  //
-  // In the wallet of the auto-config manager each signer except "me" gets set its own
-  // auto-config parameters. In the wallet of somebody using the token to send auto-config
-  // data the auto-config parameters are stored in the "me" signer and taken from there
-  // to send that data.
-  THROW_WALLET_EXCEPTION_IF(index >= m_num_authorized_signers, tools::error::wallet_internal_error, "Invalid signer index " + std::to_string(index));
-  authorized_signer &m = m_signers[index];
-  m.auto_config_token = token;
-  crypto::hash_to_scalar(token.data(), token.size(), m.auto_config_secret_key);
-  crypto::secret_key_to_public_key(m.auto_config_secret_key, m.auto_config_public_key);
-  m.auto_config_transport_address = m_transporter.derive_transport_address(m.auto_config_token);
-}
-
-bool message_store::get_signer_index_by_monero_address(const cryptonote::account_public_address &monero_address, uint32_t &index) const
+bool message_store::get_signer_index_by_public_key(const crypto::public_key &public_key, uint32_t &index) const
 {
   for (uint32_t i = 0; i < m_num_authorized_signers; ++i)
   {
     const authorized_signer &m = m_signers[i];
-    if (m.monero_address == monero_address)
+      MWARNING("We have a signer with public_key: " << epee::string_tools::pod_to_hex(m.public_key));
+    if (m.public_key == public_key)
     {
       index = m.index;
       return true;
     }
   }
-  MWARNING("No authorized signer with Monero address " << account_address_to_string(monero_address));
+  MWARNING("No authorized signer with Monero address " << epee::string_tools::pod_to_hex(public_key));
   return false;
 }
 
@@ -506,7 +668,7 @@ bool message_store::get_signer_index_by_label(const std::string label, uint32_t 
   return false;
 }
 
-void message_store::process_wallet_created_data(const multisig_wallet_state &state, message_type type, const std::string &content)
+void message_store::process_wallet_created_data(const multisig_wallet_state &state, message_type type, const std::string &content, std::vector<uint32_t> &ids)
 {
   switch(type)
   {
@@ -521,27 +683,32 @@ void message_store::process_wallet_created_data(const multisig_wallet_state &sta
     // Send the sync data to all other signers
     for (uint32_t i = 1; i < m_num_authorized_signers; ++i)
     {
-      add_message(state, i, type, message_direction::out, content);
+      uint32_t id = 0;
+      add_message(state, i, type, message_direction::out, content, &id);
+      ids.push_back(id);
     }
     break;
 
-  case message_type::partially_signed_tx:
-    // Result of a "transfer" command in the wallet, or a "sign_multisig" command
-    // that did not yet result in the minimum number of signatures required
-    // Create a message "from me to me" as a container for the tx data
-    if (m_num_required_signers == 1)
-    {
-      // Probably rare, but possible: The 1 signature is already enough, correct the type
-      // Easier to correct here than asking all callers to detect this rare special case
-      type = message_type::fully_signed_tx;
-    }
-    add_message(state, 0, type, message_direction::in, content);
-    break;
-
-  case message_type::fully_signed_tx:
-    add_message(state, 0, type, message_direction::in, content);
-    break;
-
+  case message_type::partially_signed_tx: {
+      // Result of a "transfer" command in the wallet, or a "sign_multisig" command
+      // that did not yet result in the minimum number of signatures required
+      // Create a message "from me to me" as a container for the tx data
+      if (m_num_required_signers == 1) {
+          // Probably rare, but possible: The 1 signature is already enough, correct the type
+          // Easier to correct here than asking all callers to detect this rare special case
+          type = message_type::fully_signed_tx;
+      }
+      uint32_t id = 0;
+      add_message(state, 0, type, message_direction::in, content, &id);
+      ids.push_back(id);
+      break;
+  }
+  case message_type::fully_signed_tx: {
+      uint32_t id = 0;
+      add_message(state, 0, type, message_direction::in, content, &id);
+      ids.push_back(id);
+      break;
+  }
   default:
     THROW_WALLET_EXCEPTION(tools::error::wallet_internal_error, "Illegal message type " + std::to_string((uint32_t)type));
     break;
@@ -550,7 +717,7 @@ void message_store::process_wallet_created_data(const multisig_wallet_state &sta
 
 size_t message_store::add_message(const multisig_wallet_state &state,
                                   uint32_t signer_index, message_type type, message_direction direction,
-                                  const std::string &content)
+                                  const std::string &content, uint32_t *message_id)
 {
   message m;
   m.id = m_next_message_id++;
@@ -587,6 +754,11 @@ size_t message_store::add_message(const multisig_wallet_state &state,
 
   MINFO(boost::format("Added %s message %s for signer %s of type %s")
           % message_direction_to_string(direction) % m.id % signer_index % message_type_to_string(type));
+
+  if (message_id) {
+      *message_id = m.id;
+  }
+
   return m_messages.size() - 1;
 }
 
@@ -692,17 +864,12 @@ bool message_store::message_ids_complete(const std::vector<uint32_t> &ids) const
 
 void message_store::delete_message(uint32_t id)
 {
-  delete_transport_message(id);
   size_t index = get_message_index_by_id(id);
   m_messages.erase(m_messages.begin() + index);
 }
 
 void message_store::delete_all_messages()
 {
-  for (size_t i = 0; i < m_messages.size(); ++i)
-  {
-    delete_transport_message(m_messages[i].id);
-  }
   m_messages.clear();
 }
 
@@ -793,22 +960,6 @@ void message_store::read_from_file(const multisig_wallet_state &state, const std
         loaded = true;
   }
   catch (...) {}
-  if (!loaded && load_deprecated_formats)
-  {
-    try
-    {
-      std::stringstream iss;
-      iss << buf;
-      boost::archive::portable_binary_iarchive ar(iss);
-      ar >> read_file_data;
-      loaded = true;
-    }
-    catch (const std::exception &e)
-    {
-      MERROR("MMS file " << filename << " has bad structure <iv,encrypted_data>: " << e.what());
-      THROW_WALLET_EXCEPTION_IF(true, tools::error::file_read_error, filename);
-    }
-  }
   if (!loaded)
   {
     MERROR("MMS file " << filename << " has bad structure <iv,encrypted_data>");
@@ -830,28 +981,13 @@ void message_store::read_from_file(const multisig_wallet_state &state, const std
         loaded = true;
   }
   catch(...) {}
-  if (!loaded && load_deprecated_formats)
-  {
-    try
-    {
-      std::stringstream iss;
-      iss << decrypted_data;
-      boost::archive::portable_binary_iarchive ar(iss);
-      ar >> *this;
-      loaded = true;
-    }
-    catch (const std::exception &e)
-    {
-      MERROR("MMS file " << filename << " has bad structure: " << e.what());
-      THROW_WALLET_EXCEPTION_IF(true, tools::error::file_read_error, filename);
-    }
-  }
   if (!loaded)
   {
     MERROR("MMS file " << filename << " has bad structure");
     THROW_WALLET_EXCEPTION_IF(true, tools::error::file_read_error, filename);
   }
 
+  m_transporter.set_options(m_service_url, {});
   m_filename = filename;
 }
 
@@ -866,10 +1002,35 @@ void message_store::save(const multisig_wallet_state &state)
   }
 }
 
+bool message_store::process_sync_data(std::vector<uint32_t> &message_ids)
+{
+    message_ids.resize(m_num_authorized_signers, 0);
+    for (auto &m : m_messages)
+    {
+        if (m.type == message_type::multisig_sync_data)
+        {
+            if (m.direction == message_direction::in) // Reimport processed sync data
+            {
+                // Take last
+                message_ids[m.signer_index] = m.id;
+            }
+            // set message processed or sent
+            m.state = mms::message_state::processed;
+        }
+    }
+
+    for (auto id : message_ids) {
+        if (id == 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool message_store::get_processable_messages(const multisig_wallet_state &state,
                                              bool force_sync, std::vector<processing_data> &data_list, std::string &wait_reason)
 {
-  uint32_t wallet_height = (uint32_t)state.num_transfer_details;
   data_list.clear();
   wait_reason.clear();
   // In all scans over all messages looking for complete sets (1 message for each signer),
@@ -877,63 +1038,64 @@ bool message_store::get_processable_messages(const multisig_wallet_state &state,
   // any of the current message types, but may with future ones, and it's probably a good
   // idea to have a clear and somewhat defensive strategy.
 
-  std::vector<uint32_t> auto_config_messages(m_num_authorized_signers, 0);
+  const authorized_signer &me = m_signers[0];
+
+  std::vector<uint32_t> auto_config_messages;
   bool any_auto_config = false;
 
-  for (size_t i = 0; i < m_messages.size(); ++i)
-  {
-    message &m = m_messages[i];
-    if ((m.type == message_type::auto_config_data) && (m.state == message_state::waiting))
+  std::vector<uint32_t> introduction_messages;
+  bool any_introduction_message = false;
+
+  if (m_auto_config_running) {
+    // We have imported introduction keys, but
+    if (!any_message_of_type(message_type::auto_config_data, message_direction::out)) {
+      // we haven't sent our signe
+
+      processing_data data;
+      data.processing = message_processing::add_auto_config_data;
+      data_list.push_back(data);
+      return true;
+    }
+
+    for (const auto &m : m_messages)
     {
-      if (auto_config_messages[m.signer_index] == 0)
+      if ((m.type == message_type::auto_config_data) && m.direction == message_direction::in)
       {
-        auto_config_messages[m.signer_index] = m.id;
+        auto_config_messages.push_back(m.id);
         any_auto_config = true;
       }
-      // else duplicate auto config data, ignore
     }
-  }
 
-  if (any_auto_config)
-  {
-    bool auto_config_complete = message_ids_complete(auto_config_messages);
-    if (auto_config_complete)
+    if (any_auto_config)
     {
-      processing_data data;
-      data.processing = message_processing::process_auto_config_data;
-      data.message_ids = auto_config_messages;
-      data.message_ids.erase(data.message_ids.begin());
-      data_list.push_back(data);
-      return true;
-    }
-    else
-    {
-      wait_reason = tr("Auto-config cannot proceed because auto config data from other signers is not complete");
-      return false;
-      // With ANY auto config data present but not complete refuse to check for any
-      // other processing. Manually delete those messages to abort such an auto config
-      // phase if needed.
-    }
-  }
+      LOG_ERROR("We have auto config data waiting");
+      if (auto_config_messages.size() < (m_num_authorized_signers - 1)) {
+        wait_reason = "Waiting for signer info (" + std::to_string(auto_config_messages.size()) + "/" + std::to_string(m_num_authorized_signers - 1) + ")";
+        return false;
+      }
 
-  // Any signer config that arrived will be processed right away, regardless of other things that may wait
-  for (size_t i = 0; i < m_messages.size(); ++i)
-  {
-    message &m = m_messages[i];
-    if ((m.type == message_type::signer_config) && (m.state == message_state::waiting))
-    {
-      processing_data data;
-      data.processing = message_processing::process_signer_config;
-      data.message_ids.push_back(m.id);
-      data_list.push_back(data);
-      return true;
+      if (auto_config_messages.size() <= (m_num_authorized_signers-1)) {
+        processing_data data;
+        data.processing = message_processing::process_auto_config_data;
+        data.message_ids = auto_config_messages;
+        data_list.push_back(data);
+        return true;
+      }
+      else
+      {
+        wait_reason = tr("Auto-config cannot proceed because auto config data from other signers is not complete");
+        return false;
+        // With ANY auto config data present but not complete refuse to check for any
+        // other processing. Manually delete those messages to abort such an auto config
+        // phase if needed.
+      }
     }
   }
 
   // ALL of the following processings depend on the signer info being complete
   if (!signer_config_complete())
   {
-    wait_reason = tr("The signer config is not complete.");
+    wait_reason = tr("Something went wrong: the signer config is not complete, setup aborted.");
     return false;
   }
 
@@ -1028,105 +1190,6 @@ bool message_store::get_processable_messages(const multisig_wallet_state &state,
     else
     {
       wait_reason = tr("Wallet can't start another key exchange round because key sets from other signers are missing or not complete.");
-      return false;
-    }
-  }
-
-  // Properly exchanging multisig sync data is easiest and most transparent
-  // for the user if a wallet sends its own data first and processes any received
-  // sync data afterwards so that's the order that the MMS enforces here.
-  // (Technically, it seems to work also the other way round.)
-  //
-  // To check whether a NEW round of syncing is necessary the MMS works with a
-  // "wallet state": new state means new syncing needed.
-  //
-  // The MMS monitors the "wallet state" by recording "wallet heights" as
-  // numbers of transfers present in a wallet at the time of message creation. While
-  // not watertight, this quite simple scheme should already suffice to trigger
-  // and orchestrate a sensible exchange of sync data.
-  if (state.has_multisig_partial_key_images || force_sync)
-  {
-    // Sync is necessary and not yet completed: Processing of transactions
-    // will only be possible again once properly synced
-    // Check first whether we generated already OUR sync info; take note of
-    // any processable sync info from other signers on the way in case we need it
-    bool own_sync_data_created = false;
-    std::vector<uint32_t> sync_messages(m_num_authorized_signers, 0);
-    for (size_t i = 0; i < m_messages.size(); ++i)
-    {
-      message &m = m_messages[i];
-      if ((m.type == message_type::multisig_sync_data) && (force_sync || (m.wallet_height == wallet_height)))
-      // It's data for the same "round" of syncing, on the same "wallet height", therefore relevant
-      // With "force_sync" take ANY waiting sync data, maybe it will work out
-      {
-        if (m.direction == message_direction::out)
-        {
-          own_sync_data_created = true;
-          // Ignore whether sent already or not, and assume as complete if several other signers there
-        }
-        else if ((m.direction == message_direction::in) && (m.state == message_state::waiting))
-        {
-          if (sync_messages[m.signer_index] == 0)
-          {
-            sync_messages[m.signer_index] = m.id;
-          }
-          // else duplicate sync message, ignore
-        }
-      }
-    }
-    if (!own_sync_data_created)
-    {
-      // As explained above, creating sync data BEFORE processing such data from
-      // other signers reliably works, so insist on that here
-      processing_data data;
-      data.processing = message_processing::create_sync_data;
-      data_list.push_back(data);
-      return true;
-    }
-    uint32_t id_count = (uint32_t)get_other_signers_id_count(sync_messages);
-    // Do we have sync data from ALL other signers?
-    bool all_sync_data = id_count == (m_num_authorized_signers - 1);
-    // Do we have just ENOUGH sync data to have a minimal viable sync set?
-    // In cases like 2/3 multisig we don't need messages from ALL other signers, only
-    // from enough of them i.e. num_required_signers minus 1 messages
-    bool enough_sync_data = id_count >= (m_num_required_signers - 1);
-    bool sync = false;
-    wait_reason = tr("Syncing not done because multisig sync data from other signers are missing or not complete.");
-    if (all_sync_data)
-    {
-      sync = true;
-    }
-    else if (enough_sync_data)
-    {
-      if (force_sync)
-      {
-        sync = true;
-      }
-      else
-      {
-        // Don't sync, but give a hint how this minimal set COULD be synced if really wanted
-        wait_reason += (boost::format("\nUse \"mms next sync\" if you want to sync with just %s out of %s authorized signers and transact just with them")
-                                     % (m_num_required_signers - 1) % (m_num_authorized_signers - 1)).str();
-      }
-    }
-    if (sync)
-    {
-      processing_data data;
-      data.processing = message_processing::process_sync_data;
-      for (size_t i = 0; i < sync_messages.size(); ++i)
-      {
-        uint32_t id = sync_messages[i];
-        if (id != 0)
-        {
-          data.message_ids.push_back(id);
-        }
-      }
-      data_list.push_back(data);
-      return true;
-    }
-    else
-    {
-      // We can't proceed to any transactions until we have synced; "wait_reason" already set above
       return false;
     }
   }
@@ -1239,7 +1302,7 @@ void message_store::set_message_processed_or_sent(uint32_t id)
     // So far a fairly cautious and conservative strategy: Only delete from Bitmessage
     // when fully processed (and e.g. not already after reception and writing into
     // the message store file)
-    delete_transport_message(id);
+//    delete_transport_message(id);
     m.state = message_state::processed;
   }
   else if (m.state == message_state::ready_to_send)
@@ -1267,10 +1330,10 @@ void message_store::encrypt(crypto::public_key public_key, const std::string &pl
 }
 
 void message_store::decrypt(const std::string &ciphertext, const crypto::public_key &encryption_public_key, const crypto::chacha_iv &iv,
-                            const crypto::secret_key &view_secret_key, std::string &plaintext)
+                            const crypto::secret_key &secret_key, std::string &plaintext)
 {
   crypto::key_derivation derivation;
-  bool success = crypto::generate_key_derivation(encryption_public_key, view_secret_key, derivation);
+  bool success = crypto::generate_key_derivation(encryption_public_key, secret_key, derivation);
   THROW_WALLET_EXCEPTION_IF(!success, tools::error::wallet_internal_error, "Failed to generate key derivation for message decryption");
   crypto::chacha_key chacha_key;
   crypto::generate_chacha_key(&derivation, sizeof(derivation), chacha_key, 1);
@@ -1286,56 +1349,62 @@ void message_store::send_message(const multisig_wallet_state &state, uint32_t id
   transport_message dm;
   crypto::public_key public_key;
 
-  dm.timestamp = (uint64_t)time(NULL);
-  dm.subject = "MMS V0 " + tools::get_human_readable_timestamp(dm.timestamp);
-  dm.source_transport_address = me.transport_address;
-  dm.source_monero_address = me.monero_address;
+  std::string recipient;
+
+  dm.timestamp = (uint64_t)time(nullptr);
+  dm.source_public_key = me.public_key;
+
   if (m.type == message_type::auto_config_data)
   {
     // Encrypt with the public key derived from the auto-config token, and send to the
     // transport address likewise derived from that token
-    public_key = me.auto_config_public_key;
-    dm.destination_transport_address = me.auto_config_transport_address;
-    // The destination Monero address is not yet known
-    memset(&dm.destination_monero_address, 0, sizeof(cryptonote::account_public_address));
+    public_key = m_auto_config_public_key;
   }
-  else
-  {
+  else {
     // Encrypt with the receiver's view public key
-    public_key = receiver.monero_address.m_view_public_key;
-    const authorized_signer &receiver = m_signers[m.signer_index];
-    dm.destination_monero_address = receiver.monero_address;
-    dm.destination_transport_address = receiver.transport_address;
+    public_key = receiver.public_key;
   }
-  encrypt(public_key, m.content, dm.content, dm.encryption_public_key, dm.iv);
+
+  dm.destination_public_key = receiver.public_key;
+  dm.content = m.content;
+
+  recipient = epee::string_tools::pod_to_hex(receiver.public_key);
+
   dm.type = (uint32_t)m.type;
-  dm.hash = crypto::cn_fast_hash(dm.content.data(), dm.content.size());
   dm.round = m.round;
 
-  crypto::generate_signature(dm.hash, me.monero_address.m_view_public_key, state.view_secret_key, dm.signature);
+  encrypted_message em;
+  std::string json_content = epee::serialization::store_t_to_json(dm);
 
-  m_transporter.send_message(dm);
+  encrypt(public_key, json_content, em.message, em.encryption_public_key, em.iv);
+
+  em.hash = crypto::cn_fast_hash(em.message.data(), em.message.size());
+
+  // TODO: Sign with setup key signer info?
+  crypto::generate_signature(em.hash, me.public_key, me.secret_key, em.signature);
+
+  std::string sender = epee::string_tools::pod_to_hex(me.public_key);
+
+  if (m.type == mms::message_type::multisig_sync_data) {
+    m_transporter.send_pinned_message(em, m_service_channel, m_service_token, recipient);
+  }
+  else {
+    m_transporter.send_message(em, m_service_channel, m_service_token, recipient);
+  }
 
   m.state=message_state::sent;
-  m.sent= (uint64_t)time(NULL);
+  m.sent= (uint64_t)time(nullptr);
 }
 
 bool message_store::check_for_messages(const multisig_wallet_state &state, std::vector<message> &messages)
 {
   m_run.store(true, std::memory_order_relaxed);
   const authorized_signer &me = m_signers[0];
-  std::vector<std::string> destinations;
-  destinations.push_back(me.transport_address);
-  for (uint32_t i = 1; i < m_num_authorized_signers; ++i)
-  {
-    const authorized_signer &m = m_signers[i];
-    if (m.auto_config_running)
-    {
-      destinations.push_back(m.auto_config_transport_address);
-    }
-  }
-  std::vector<transport_message> transport_messages;
-  if (!m_transporter.receive_messages(destinations, transport_messages))
+
+
+  std::string last_id;
+  std::vector<encrypted_message> encrypted_messages;
+  if (!m_transporter.receive_messages(m_service_channel, m_service_token, m_last_processed_message, encrypted_messages, last_id))
   {
     return false;
   }
@@ -1346,91 +1415,89 @@ bool message_store::check_for_messages(const multisig_wallet_state &state, std::
     return false;
   }
 
+  if (encrypted_messages.empty()) {
+    return false;
+  }
+
   bool new_messages = false;
-  for (size_t i = 0; i < transport_messages.size(); ++i)
+  for (size_t i = 0; i < encrypted_messages.size(); ++i)
   {
-    transport_message &rm = transport_messages[i];
+    encrypted_message &rm = encrypted_messages[i];
     if (any_message_with_hash(rm.hash))
     {
+        LOG_ERROR("We already saw this message");
+        continue;
       // Already seen, do not take again
     }
-    else
+
+    crypto::hash actual_hash = crypto::cn_fast_hash(rm.message.data(), rm.message.size());
+    THROW_WALLET_EXCEPTION_IF(actual_hash != rm.hash, tools::error::wallet_internal_error, "Message hash mismatch");
+
+    // Decrypt here?
+
+    crypto::secret_key decrypt_key;
+    if (m_auto_config_running) {
+      decrypt_key = m_auto_config_secret_key;
+    }
+    else {
+      decrypt_key = me.secret_key;
+    }
+
+    std::string plaintext;
+    decrypt(rm.message, rm.encryption_public_key, rm.iv, decrypt_key, plaintext);
+
+    transport_message tm;
+    if (!epee::serialization::load_t_from_json(tm, plaintext))
     {
-      uint32_t sender_index;
-      bool take = false;
-      message_type type = static_cast<message_type>(rm.type);
-      crypto::secret_key decrypt_key = state.view_secret_key;
-      if (type == message_type::auto_config_data)
-      {
-        // Find out which signer sent it by checking which auto config transport address
-        // the message was sent to
-        for (uint32_t i = 1; i < m_num_authorized_signers; ++i)
-        {
-          const authorized_signer &m = m_signers[i];
-          if (m.auto_config_transport_address == rm.destination_transport_address)
-          {
-            take = true;
-            sender_index = i;
-            decrypt_key = m.auto_config_secret_key;
-            break;
-          }
-        }
-      }
-      else if (type == message_type::signer_config)
-      {
-        // Typically we can't check yet whether we know the sender, so take from any
-        // and pretend it's from "me" because we might have nothing else yet
-        take = true;
-        sender_index = 0;
-      }
-      else
-      {
-        // Only accept from senders that are known as signer here, otherwise just ignore
-        take = get_signer_index_by_monero_address(rm.source_monero_address, sender_index);
-      }
-      if (take && (type != message_type::auto_config_data))
-      {
-        // If the destination address is known, check it as well; this additional filter
-        // allows using the same transport address for multiple signers
-        take = rm.destination_monero_address == me.monero_address;
-      }
-      if (take)
-      {
-        crypto::hash actual_hash = crypto::cn_fast_hash(rm.content.data(), rm.content.size());
-        THROW_WALLET_EXCEPTION_IF(actual_hash != rm.hash, tools::error::wallet_internal_error, "Message hash mismatch");
-
-        bool signature_valid = crypto::check_signature(actual_hash, rm.source_monero_address.m_view_public_key, rm.signature);
-        THROW_WALLET_EXCEPTION_IF(!signature_valid, tools::error::wallet_internal_error, "Message signature not valid");
-
-        std::string plaintext;
-        decrypt(rm.content, rm.encryption_public_key, rm.iv, decrypt_key, plaintext);
-        size_t index = add_message(state, sender_index, (message_type)rm.type, message_direction::in, plaintext);
-        message &m = m_messages[index];
-        m.hash = rm.hash;
-        m.transport_id = rm.transport_id;
-        m.sent = rm.timestamp;
-        m.round = rm.round;
-        m.signature_count = rm.signature_count;
-        messages.push_back(m);
-        new_messages = true;
+      // TODO: get rid of this double decrypt
+      decrypt(rm.message, rm.encryption_public_key, rm.iv, me.secret_key, plaintext);
+      if (!epee::serialization::load_t_from_json(tm, plaintext)) {
+        MERROR("Failed to deserialize messages");
+        continue;
       }
     }
+
+    bool signature_valid = crypto::check_signature(actual_hash, tm.source_public_key, rm.signature);
+    THROW_WALLET_EXCEPTION_IF(!signature_valid, tools::error::wallet_internal_error, "Message signature not valid");
+
+    uint32_t sender_index;
+
+//    if (m_auto_config_running) {
+//      // if (m_waiting_for_introduction_key && (message_type)tm.type != mms::message_type::introduction_key) {
+//      //   MERROR("Invalid message type");
+//      //   continue;
+//      // }
+//      // elif ((message_type)tm.type != mms::message_type::auto_config_data) {
+//      //   MERROR("Invalid message type during auto config");
+//      //   continue;
+//      // }
+//
+//      // We haven't assigned signer indexes at this point, so just use 0
+//      sender_index = 0;
+//    } else {
+      // Only accept from senders that are known as signer here, otherwise just ignore
+      bool known_sender = get_signer_index_by_public_key(tm.source_public_key, sender_index);
+
+      if (!known_sender) {
+        MERROR("Sender unknown");
+        continue;
+      }
+//    }
+
+    // TODO: If we receive multisig_sync_data, set all previously received multisig_sync_data from that co-signer to "processed"
+
+    size_t index = add_message(state, sender_index, (message_type)tm.type, message_direction::in, tm.content);
+    message &m = m_messages[index];
+    m.hash = rm.hash;
+    m.sent = tm.timestamp;
+    m.round = tm.round;
+    messages.push_back(m);
+    new_messages = true;
   }
+
+  m_last_processed_message = last_id;
+
   return new_messages;
-}
-
-void message_store::delete_transport_message(uint32_t id)
-{
-  const message &m = get_message_by_id(id);
-  if (!m.transport_id.empty())
-  {
-    m_transporter.delete_message(m.transport_id);
-  }
-}
-
-std::string message_store::account_address_to_string(const cryptonote::account_public_address &account_address) const
-{
-  return get_account_address_as_str(m_nettype, false, account_address);
 }
 
 const char* message_store::message_type_to_string(message_type type)
@@ -1442,7 +1509,7 @@ const char* message_store::message_type_to_string(message_type type)
   case message_type::additional_key_set:
     return tr("additional key set");
   case message_type::multisig_sync_data:
-    return tr("multisig sync data");
+    return tr("multisig info");
   case message_type::partially_signed_tx:
     return tr("partially signed tx");
   case message_type::fully_signed_tx:
@@ -1494,34 +1561,7 @@ const char* message_store::message_state_to_string(message_state state)
 // Format: label: transport_address
 std::string message_store::signer_to_string(const authorized_signer &signer, uint32_t max_width)
 {
-  std::string s = "";
-  s.reserve(max_width);
-  uint32_t avail = max_width;
-  uint32_t label_len = signer.label.length();
-  if (label_len > avail)
-  {
-    s.append(signer.label.substr(0, avail - 2));
-    s.append("..");
-    return s;
-  }
-  s.append(signer.label);
-  avail -= label_len;
-  uint32_t transport_addr_len = signer.transport_address.length();
-  if ((transport_addr_len > 0) && (avail > 10))
-  {
-    s.append(": ");
-    avail -= 2;
-    if (transport_addr_len <= avail)
-    {
-      s.append(signer.transport_address);
-    }
-    else
-    {
-      s.append(signer.transport_address.substr(0, avail-2));
-      s.append("..");
-    }
-  }
-  return s;
+  return signer.label;
 }
 
 }

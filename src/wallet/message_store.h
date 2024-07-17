@@ -52,8 +52,9 @@
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.mms"
-#define AUTO_CONFIG_TOKEN_BYTES 4
+#define AUTO_CONFIG_TOKEN_BYTES 35
 #define AUTO_CONFIG_TOKEN_PREFIX "mms"
+#define RECOVERY_INFO_PREFIX "MMS_RECOVERY-"
 
 namespace mms
 {
@@ -66,7 +67,8 @@ namespace mms
     fully_signed_tx,
     note,
     signer_config,
-    auto_config_data
+    auto_config_data,
+    introduction_key
   };
 
   enum class message_direction
@@ -97,7 +99,9 @@ namespace mms
     send_tx,
     submit_tx,
     process_signer_config,
-    process_auto_config_data
+    add_auto_config_data,
+    process_auto_config_data,
+    process_introduction_keys,
   };
 
   struct message
@@ -143,41 +147,28 @@ namespace mms
   struct authorized_signer
   {
     std::string label;
-    std::string transport_address;
-    bool monero_address_known;
-    cryptonote::account_public_address monero_address;
+    bool public_key_known;
+    crypto::secret_key secret_key;
+    crypto::public_key public_key;
     bool me;
     uint32_t index;
-    std::string auto_config_token;
-    crypto::public_key auto_config_public_key;
-    crypto::secret_key auto_config_secret_key;
-    std::string auto_config_transport_address;
-    bool auto_config_running;
 
     BEGIN_SERIALIZE_OBJECT()
       VERSION_FIELD(0)
       FIELD(label)
-      FIELD(transport_address)
-      FIELD(monero_address_known)
-      FIELD(monero_address)
+      FIELD(public_key_known)
+      FIELD(secret_key)
+      FIELD(public_key)
       FIELD(me)
       VARINT_FIELD(index)
-      FIELD(auto_config_token)
-      FIELD(auto_config_public_key)
-      FIELD(auto_config_secret_key)
-      FIELD(auto_config_transport_address)
-      FIELD(auto_config_running)
     END_SERIALIZE()
 
     authorized_signer()
     {
-      monero_address_known = false;
-      memset(&monero_address, 0, sizeof(cryptonote::account_public_address));
+      public_key_known = false;
+      public_key = crypto::null_pkey;
       me = false;
       index = 0;
-      auto_config_public_key = crypto::null_pkey;
-      auto_config_secret_key = crypto::null_skey;
-      auto_config_running = false;
     };
   };
 
@@ -187,26 +178,25 @@ namespace mms
     std::vector<uint32_t> message_ids;
     uint32_t receiving_signer_index = 0;
   };
-
-  struct file_transport_message
-  {
-    cryptonote::account_public_address sender_address;
-    crypto::chacha_iv iv;
-    crypto::public_key encryption_public_key;
-    message internal_message;
-  };
   
   struct auto_config_data
   {
     std::string label;
-    std::string transport_address;
-    cryptonote::account_public_address monero_address;
+    crypto::public_key public_key;
 
     BEGIN_SERIALIZE_OBJECT()
       VERSION_FIELD(0)
       FIELD(label)
-      FIELD(transport_address)
-      FIELD(monero_address)
+      FIELD(public_key)
+    END_SERIALIZE()
+  };
+
+  struct introduction_key {
+    crypto::public_key key;
+
+    BEGIN_SERIALIZE_OBJECT()
+      VERSION_FIELD(0)
+      FIELD(key)
     END_SERIALIZE()
   };
 
@@ -252,7 +242,6 @@ namespace mms
 
     BEGIN_SERIALIZE_OBJECT()
       VERSION_FIELD(0)
-      FIELD(address)
       VARINT_FIELD(nettype)
       FIELD(view_secret_key)
       FIELD(multisig)
@@ -264,54 +253,109 @@ namespace mms
     END_SERIALIZE()
   };
 
+  enum class setup_mode {
+    automatic,
+    semi_automatic,
+    manual,
+  };
+
+  struct setup_key
+  {
+    setup_mode mode = setup_mode::automatic;
+    uint32_t threshold = 0;
+    uint32_t participants = 0;
+    std::string service_url;
+    std::string service_channel;
+    crypto::secret_key key;
+
+    BEGIN_SERIALIZE_OBJECT()
+      VERSION_FIELD(0)
+      VARINT_FIELD(mode)
+      VARINT_FIELD(threshold)
+      VARINT_FIELD(participants)
+      FIELD(service_url)
+      FIELD(service_channel)
+      FIELD(key)
+    END_SERIALIZE()
+  };
+
+  struct recovery_info
+  {
+      std::string service_url;
+      std::string service_channel;
+      std::string service_token;
+
+      crypto::secret_key secret_key;
+      std::vector<auto_config_data> signer_info;
+      uint64_t restore_height = 0;
+
+      BEGIN_SERIALIZE_OBJECT()
+          VERSION_FIELD(0)
+          FIELD(service_url)
+          FIELD(service_channel)
+          FIELD(service_token)
+          FIELD(secret_key)
+          FIELD(signer_info)
+          VARINT_FIELD(restore_height)
+      END_SERIALIZE()
+  };
+
   class message_store
   {
   public:
     message_store(std::unique_ptr<epee::net_utils::http::abstract_http_client> http_client);
 
-    // Initialize and start to use the MMS, set the first signer, this wallet itself
-    // Filename, if not null and not empty, is used to create the ".mms" file
-    // reset it if already used, with deletion of all signers and messages
-    void init(const multisig_wallet_state &state, const std::string &own_label,
-              const std::string &own_transport_address, uint32_t num_authorized_signers, uint32_t num_required_signers);
+    void init_from_setup_key(const multisig_wallet_state &state, const std::string &setup_key, const std::string &own_label);
+    void init_from_recovery(const multisig_wallet_state &state, const std::string &recovery, uint32_t signers, uint32_t total);
+
+    void set_service_details(const std::string &message_service_address, const epee::wipeable_string &message_service_login);
+
+    std::string get_recovery_info(const multisig_wallet_state &state, uint64_t restore_height);
+
     void set_active(bool active) { m_active = active; };
     void set_auto_send(bool auto_send) { m_auto_send = auto_send; };
-    void set_options(const boost::program_options::variables_map& vm);
-    void set_options(const std::string &bitmessage_address, const epee::wipeable_string &bitmessage_login);
+
     bool get_active() const { return m_active; };
     bool get_auto_send() const { return m_auto_send; };
+
     uint32_t get_num_required_signers() const { return m_num_required_signers; };
     uint32_t get_num_authorized_signers() const { return m_num_authorized_signers; };
 
     void set_signer(const multisig_wallet_state &state,
                     uint32_t index,
                     const boost::optional<std::string> &label,
-                    const boost::optional<std::string> &transport_address,
-                    const boost::optional<cryptonote::account_public_address> monero_address);
+                    const boost::optional<crypto::public_key> &public_key);
 
     const authorized_signer &get_signer(uint32_t index) const;
-    bool get_signer_index_by_monero_address(const cryptonote::account_public_address &monero_address, uint32_t &index) const;
+    bool get_signer_index_by_public_key(const crypto::public_key &public_key, uint32_t &index) const;
     bool get_signer_index_by_label(const std::string label, uint32_t &index) const;
     const std::vector<authorized_signer> &get_all_signers() const { return m_signers; };
     bool signer_config_complete() const;
+    bool signer_keys_complete() const;
     bool signer_labels_complete() const;
     void get_signer_config(std::string &signer_config);
-    void unpack_signer_config(const multisig_wallet_state &state, const std::string &signer_config,
-                              std::vector<authorized_signer> &signers);
-    void process_signer_config(const multisig_wallet_state &state, const std::string &signer_config);
 
-    void start_auto_config(const multisig_wallet_state &state);
     bool check_auto_config_token(const std::string &raw_token,
-                                 std::string &adjusted_token) const;
-    size_t add_auto_config_data_message(const multisig_wallet_state &state,
-                                        const std::string &auto_config_token);
+                                 setup_key &key) const;
+
+    size_t add_introduction_key_message(const multisig_wallet_state &state);
+
+    size_t add_auto_config_data_messages(const multisig_wallet_state &state);
+
+
+    auto_config_data get_auto_config_data(uint32_t id);
+
+    std::vector<auto_config_data> get_auto_config_data();
+
+    bool auto_config_data_complete(std::vector<uint32_t> &auto_config_messages);
+
     void process_auto_config_data_message(uint32_t id);
     std::string get_config_checksum() const;
     void stop_auto_config();
 
     // Process data just created by "me" i.e. the own local wallet, e.g. as the result of a "prepare_multisig" command
     // Creates the resulting messages to the right signers
-    void process_wallet_created_data(const multisig_wallet_state &state, message_type type, const std::string &content);
+    void process_wallet_created_data(const multisig_wallet_state &state, message_type type, const std::string &content, std::vector<uint32_t> &message_ids);
 
     // Go through all the messages, look at the "ready to process" ones, and check whether any single one
     // or any group of them can be processed, because they are processable as single messages (like a tx
@@ -331,9 +375,11 @@ namespace mms
                                   std::string &wait_reason);
     void set_messages_processed(const processing_data &data);
 
+    bool process_sync_data(std::vector<uint32_t> &message_ids);
+
     size_t add_message(const multisig_wallet_state &state,
                        uint32_t signer_index, message_type type, message_direction direction,
-                       const std::string &content);
+                       const std::string &content, uint32_t *message_id = nullptr);
     const std::vector<message> &get_all_messages() const { return m_messages; };
     bool get_message_by_id(uint32_t id, message &m) const;
     message get_message_by_id(uint32_t id) const;
@@ -349,21 +395,8 @@ namespace mms
     void write_to_file(const multisig_wallet_state &state, const std::string &filename);
     void read_from_file(const multisig_wallet_state &state, const std::string &filename, bool load_deprecated_formats = false);
 
-    template <class t_archive>
-    inline void serialize(t_archive &a, const unsigned int ver)
-    {
-      a & m_active;
-      a & m_num_authorized_signers;
-      a & m_nettype;
-      a & m_num_required_signers;
-      a & m_signers;
-      a & m_messages;
-      a & m_next_message_id;
-      a & m_auto_send;
-    }
-
     BEGIN_SERIALIZE_OBJECT()
-      VERSION_FIELD(0)
+      VERSION_FIELD(1)
       FIELD(m_active)
       VARINT_FIELD(m_num_authorized_signers)
       VARINT_FIELD(m_nettype)
@@ -372,6 +405,15 @@ namespace mms
       FIELD(m_messages)
       VARINT_FIELD(m_next_message_id)
       FIELD(m_auto_send)
+      if (version < 1)
+      {
+        m_last_processed_message = "-";
+        return true;
+      }
+      FIELD(m_last_processed_message)
+      FIELD(m_service_url)
+      FIELD(m_service_channel)
+      FIELD(m_service_token)
     END_SERIALIZE()
 
     static const char* message_type_to_string(message_type type);
@@ -380,7 +422,13 @@ namespace mms
     std::string signer_to_string(const authorized_signer &signer, uint32_t max_width);
     
     static const char *tr(const char *str) { return i18n_translate(str, "tools::mms"); }
-    static void init_options(boost::program_options::options_description& desc_params);
+
+    bool register_channel(std::string &channel, uint32_t user_limit);
+    bool register_user();
+
+    bool get_channel_users(const multisig_wallet_state &state, uint32_t &num_users);
+
+    std::string create_setup_key(uint32_t threshold, uint32_t signers, const std::string &service, const std::string &channel, setup_mode mode);
 
   private:
     bool m_active;
@@ -394,6 +442,16 @@ namespace mms
     std::string m_filename;
     message_transporter m_transporter;
     std::atomic<bool> m_run;
+    std::string m_last_processed_message;
+    bool m_user_registered = false;
+
+    std::string m_service_url;
+    std::string m_service_channel;
+    std::string m_service_token;
+
+    bool m_auto_config_running = false;
+    crypto::public_key m_auto_config_public_key = crypto::null_pkey;
+    crypto::secret_key m_auto_config_secret_key = crypto::null_skey;
 
     bool get_message_index_by_id(uint32_t id, size_t &index) const;
     size_t get_message_index_by_id(uint32_t id) const;
@@ -406,95 +464,7 @@ namespace mms
                  std::string &ciphertext, crypto::public_key &encryption_public_key, crypto::chacha_iv &iv);
     void decrypt(const std::string &ciphertext, const crypto::public_key &encryption_public_key, const crypto::chacha_iv &iv,
                  const crypto::secret_key &view_secret_key, std::string &plaintext);
-    std::string create_auto_config_token();
-    void setup_signer_for_auto_config(uint32_t index, const std::string token, bool receiving);
-    void delete_transport_message(uint32_t id);
-    std::string account_address_to_string(const cryptonote::account_public_address &account_address) const;
+
     void save(const multisig_wallet_state &state);
   };
-}
-
-BOOST_CLASS_VERSION(mms::file_data, 0)
-BOOST_CLASS_VERSION(mms::message_store, 0)
-BOOST_CLASS_VERSION(mms::message, 0)
-BOOST_CLASS_VERSION(mms::file_transport_message, 0)
-BOOST_CLASS_VERSION(mms::authorized_signer, 1)
-BOOST_CLASS_VERSION(mms::auto_config_data, 0)
-
-namespace boost
-{
-  namespace serialization
-  {
-    template <class Archive>
-    inline void serialize(Archive &a, mms::file_data &x, const boost::serialization::version_type ver)
-    {
-      a & x.magic_string;
-      a & x.file_version;
-      a & x.iv;
-      a & x.encrypted_data;
-    }
-
-    template <class Archive>
-    inline void serialize(Archive &a, mms::message &x, const boost::serialization::version_type ver)
-    {
-      a & x.id;
-      a & x.type;
-      a & x.direction;
-      a & x.content;
-      a & x.created;
-      a & x.modified;
-      a & x.sent;
-      a & x.signer_index;
-      a & x.hash;
-      a & x.state;
-      a & x.wallet_height;
-      a & x.round;
-      a & x.signature_count;
-      a & x.transport_id;
-    }
-
-    template <class Archive>
-    inline void serialize(Archive &a, mms::authorized_signer &x, const boost::serialization::version_type ver)
-    {
-      a & x.label;
-      a & x.transport_address;
-      a & x.monero_address_known;
-      a & x.monero_address;
-      a & x.me;
-      a & x.index;
-      if (ver < 1)
-      {
-        return;
-      }
-      a & x.auto_config_token;
-      a & x.auto_config_public_key;
-      a & x.auto_config_secret_key;
-      a & x.auto_config_transport_address;
-      a & x.auto_config_running;  
-    }
-
-    template <class Archive>
-    inline void serialize(Archive &a, mms::auto_config_data &x, const boost::serialization::version_type ver)
-    {
-      a & x.label;
-      a & x.transport_address;
-      a & x.monero_address;
-    }
-
-    template <class Archive>
-    inline void serialize(Archive &a, mms::file_transport_message &x, const boost::serialization::version_type ver)
-    {
-      a & x.sender_address;
-      a & x.iv;
-      a & x.encryption_public_key;
-      a & x.internal_message;
-    }
-
-    template <class Archive>
-    inline void serialize(Archive &a, crypto::chacha_iv &x, const boost::serialization::version_type ver)
-    {
-      a & x.data;
-    }
-
-  }
 }

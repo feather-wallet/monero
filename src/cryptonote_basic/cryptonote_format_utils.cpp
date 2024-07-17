@@ -1260,6 +1260,10 @@ namespace cryptonote
   {
     crypto::hash h = null_hash;
     get_transaction_hash(t, h, NULL);
+    if (!get_transaction_hash(t, h, NULL)) {
+        LOG_ERROR("Something went wrong");
+        int a = 0;
+    }
     CHECK_AND_ASSERT_THROW_MES(get_transaction_hash(t, h, NULL), "Failed to calculate transaction hash");
     return h;
   }
@@ -1351,6 +1355,10 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool calculate_transaction_hash(const transaction& t, crypto::hash& res, size_t* blob_size)
   {
+    if (t.pruned) {
+        int a = 0;
+    }
+
     CHECK_AND_ASSERT_MES(!t.pruned, false, "Cannot calculate the hash of a pruned transaction");
 
     // v1 transactions hash the entire blob
@@ -1601,6 +1609,10 @@ namespace cryptonote
     txs_ids.reserve(1 + b.tx_hashes.size());
     crypto::hash h = null_hash;
     size_t bl_sz = 0;
+    if (!get_transaction_hash(b.miner_tx, h, bl_sz)) {
+        LOG_ERROR("Something went wrong");
+        int a = 0;
+    }
     CHECK_AND_ASSERT_THROW_MES(get_transaction_hash(b.miner_tx, h, bl_sz), "Failed to calculate transaction hash");
     txs_ids.push_back(h);
     for(auto& th: b.tx_hashes)

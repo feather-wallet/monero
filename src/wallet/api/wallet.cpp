@@ -791,6 +791,43 @@ bool WalletImpl::recoverDeterministicWalletFromSpendKey(const std::string &path,
     return status() == Status_Ok;
 }
 
+bool WalletImpl::recoverMultisigWallet(const std::string &path, const std::string &password, const std::string &seed, const std::string &mmsRecovery)
+{
+    clearStatus();
+
+    m_recoveringFromSeed = false;
+    m_recoveringFromDevice = false;
+
+    epee::wipeable_string multisigSeed{seed};
+    const boost::optional<epee::wipeable_string> parsed = multisigSeed.parse_hexstr();
+    if (!parsed)
+    {
+        setStatusError(tr("Multisig seed failed verification"));
+        return false;
+    }
+
+    // TODO: we might want to check if mms recovery info is parseable before generating a new wallet
+
+    try {
+        m_wallet->generate(path, password, parsed.get());
+    } catch (const std::exception &e) {
+        setStatusCritical(e.what());
+    }
+
+    // TODO: do some stuff with mmsRecovery
+
+    mms::message_store& ms = m_wallet->get_message_store();
+
+    bool ready = false;
+    uint32_t threshold = 0;
+    uint32_t total = 0;
+    m_wallet->multisig(&ready, &threshold, &total);
+
+    ms.init_from_recovery(m_wallet->get_multisig_wallet_state(), mmsRecovery, threshold, total);
+
+    return status() == Status_Ok;
+}
+
 bool WalletImpl::close(bool store)
 {
     bool result = false;
@@ -1795,13 +1832,8 @@ PendingTransaction* WalletImpl::restoreMultisigTransaction(const string& signDat
         clearStatus();
         checkMultisigWalletReady(m_wallet);
 
-        string binary;
-        if (!epee::string_tools::parse_hexstr_to_binbuff(signData, binary)) {
-            throw runtime_error("Failed to deserialize multisig transaction");
-        }
-
         tools::wallet2::multisig_tx_set txSet;
-        if (!m_wallet->load_multisig_tx(binary, txSet, {})) {
+        if (!m_wallet->load_multisig_tx(signData, txSet, {})) {
           throw runtime_error("couldn't parse multisig transaction data");
         }
 

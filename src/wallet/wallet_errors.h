@@ -907,18 +907,18 @@ namespace tools
       }
     };
     //----------------------------------------------------------------------------------------------------
-    struct no_connection_to_bitmessage : public mms_error
+    struct no_connection_to_message_service : public mms_error
     {
-      explicit no_connection_to_bitmessage(std::string&& loc, const std::string& address)
-        : mms_error(std::move(loc), "no connection to PyBitmessage at address " + address)
+      explicit no_connection_to_message_service(std::string&& loc, const std::string& address)
+        : mms_error(std::move(loc), "no connection to Multisig Message Service at address " + address)
       {
       }
     };
     //----------------------------------------------------------------------------------------------------
-    struct bitmessage_api_error : public mms_error
+    struct message_service_api_error : public mms_error
     {
-      explicit bitmessage_api_error(std::string&& loc, const std::string& error_string)
-        : mms_error(std::move(loc), "PyBitmessage returned " + error_string)
+      explicit message_service_api_error(std::string&& loc, const std::string& error_string)
+        : mms_error(std::move(loc), error_string)
       {
       }
     };

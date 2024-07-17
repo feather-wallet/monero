@@ -44,70 +44,64 @@ namespace mms
 
 struct transport_message_t
 {
-  cryptonote::account_public_address source_monero_address;
-  std::string source_transport_address;
-  cryptonote::account_public_address destination_monero_address;
-  std::string destination_transport_address;
-  crypto::chacha_iv iv;
-  crypto::public_key encryption_public_key;
+  crypto::public_key source_public_key;
+  crypto::public_key destination_public_key;
   uint64_t timestamp;
   uint32_t type;
-  std::string subject;
   std::string content;
-  crypto::hash hash;
-  crypto::signature signature;
   uint32_t round;
-  uint32_t signature_count;
-  std::string transport_id;
 
   BEGIN_KV_SERIALIZE_MAP()
-    KV_SERIALIZE(source_monero_address)
-    KV_SERIALIZE(source_transport_address)
-    KV_SERIALIZE(destination_monero_address)
-    KV_SERIALIZE(destination_transport_address)
-    KV_SERIALIZE_VAL_POD_AS_BLOB(iv)
-    KV_SERIALIZE_VAL_POD_AS_BLOB(encryption_public_key)
+    KV_SERIALIZE_VAL_POD_AS_BLOB(source_public_key)
+    KV_SERIALIZE_VAL_POD_AS_BLOB(destination_public_key)
     KV_SERIALIZE(timestamp)
     KV_SERIALIZE(type)
-    KV_SERIALIZE(subject)
     KV_SERIALIZE(content)
-    KV_SERIALIZE_VAL_POD_AS_BLOB(hash)
-    KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
     KV_SERIALIZE(round)
-    KV_SERIALIZE(signature_count)
-    KV_SERIALIZE(transport_id)
   END_KV_SERIALIZE_MAP()
 };
 typedef epee::misc_utils::struct_init<transport_message_t> transport_message;
+
+struct encrypted_message
+{
+  crypto::chacha_iv iv;
+  crypto::public_key encryption_public_key;
+  crypto::hash hash;
+  crypto::signature signature;
+  std::string message;
+
+  BEGIN_KV_SERIALIZE_MAP()
+    KV_SERIALIZE_VAL_POD_AS_BLOB(iv)
+    KV_SERIALIZE_VAL_POD_AS_BLOB(encryption_public_key)
+    KV_SERIALIZE_VAL_POD_AS_BLOB(hash)
+    KV_SERIALIZE_VAL_POD_AS_BLOB(signature)
+    KV_SERIALIZE(message)
+  END_KV_SERIALIZE_MAP()
+};
 
 class message_transporter
 {
 public:
   message_transporter(std::unique_ptr<epee::net_utils::http::abstract_http_client> http_client);
-  void set_options(const std::string &bitmessage_address, const epee::wipeable_string &bitmessage_login);
-  bool send_message(const transport_message &message);
-  bool receive_messages(const std::vector<std::string> &destination_transport_addresses,
-                        std::vector<transport_message> &messages);
-  bool delete_message(const std::string &transport_id);
+  void set_options(const std::string &message_service_address, const epee::wipeable_string &message_service_login);
+
+  bool register_channel(std::string &channel, uint32_t user_limit);
+  bool register_user(const std::string &channel, const std::string &user, std::string &token);
+
+  std::vector<std::string> get_channel_users(const std::string &channel, const std::string &token);
+
+  bool send_message(const encrypted_message &message, const std::string &channel, const std::string &token, const std::string &recipient);
+  bool send_pinned_message(const encrypted_message &message, const std::string &channel, const std::string &token, const std::string &recipient);
+  bool receive_messages(const std::string &channel, const std::string &token, const std::string &after, std::vector<encrypted_message> &messages, std::string &last_id);
   void stop() { m_run.store(false, std::memory_order_relaxed); }
-  std::string derive_transport_address(const std::string &seed);
-  bool delete_transport_address(const std::string &transport_address);
 
 private:
   const std::unique_ptr<epee::net_utils::http::abstract_http_client> m_http_client;
-  std::string m_bitmessage_url;
-  epee::wipeable_string m_bitmessage_login;
+  std::string m_message_service_url;
+  epee::wipeable_string m_message_service_login;
   std::atomic<bool> m_run;
 
-  bool post_request(const std::string &request, std::string &answer);
-  static std::string get_str_between_tags(const std::string &s, const std::string &start_delim, const std::string &stop_delim);
-
-  static void start_xml_rpc_cmd(std::string &xml, const std::string &method_name);
-  static void add_xml_rpc_string_param(std::string &xml, const std::string &param);
-  static void add_xml_rpc_base64_param(std::string &xml, const std::string &param);
-  static void add_xml_rpc_integer_param(std::string &xml, const int32_t &param);
-  static void end_xml_rpc_cmd(std::string &xml);
-
+  bool post_request(const std::string &endpoint, const std::string &request, std::string &answer);
 };
 
 }

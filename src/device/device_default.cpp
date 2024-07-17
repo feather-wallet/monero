@@ -128,6 +128,12 @@ namespace hw {
             if (index.is_zero())
               return keys.m_account_address.m_spend_public_key;
 
+//            cryptonote::subaddress_index inde;
+//            inde.major = 0;
+//            inde.minor = 250;
+
+//            const auto key = crypto::null_skey;
+
             // m = Hs(a || index_major || index_minor)
             crypto::secret_key m = get_subaddress_secret_key(keys.m_view_secret_key, index);
 
@@ -181,6 +187,14 @@ namespace hw {
         cryptonote::account_public_address device_default::get_subaddress(const cryptonote::account_keys& keys, const cryptonote::subaddress_index &index) {
             if (index.is_zero())
               return keys.m_account_address;
+
+//            cryptonote::account_keys k{keys};
+//
+//            k.m_view_secret_key = rct::rct2sk(rct::skGen());
+//
+//            cryptonote::subaddress_index inde;
+//            inde.minor = -1;
+//            inde.major = -1;
 
             crypto::public_key D = get_subaddress_spend_public_key(keys, index);
 

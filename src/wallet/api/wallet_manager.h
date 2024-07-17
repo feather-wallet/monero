@@ -86,6 +86,16 @@ public:
                                             const std::string &subaddressLookahead = "",
                                             uint64_t kdf_rounds = 1,
                                             WalletListener * listener = nullptr) override;
+
+    virtual Wallet * recoverMultisigWallet(const std::string &path,
+                                           const std::string &password,
+                                           NetworkType nettype,
+                                           uint64_t restoreHeight,
+                                           const std::string &multisigSeed,
+                                           const std::string &mmsRecovery,
+                                           uint64_t kdf_rounds,
+                                           const std::string &subaddress_lookahead) override;
+
     virtual bool closeWallet(Wallet *wallet, bool store = true) override;
     bool walletExists(const std::string &path) override;
     bool verifyWalletPassword(const std::string &keys_file_name, const std::string &password, bool no_spend_key, uint64_t kdf_rounds = 1) const override;

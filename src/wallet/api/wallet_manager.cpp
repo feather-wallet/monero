@@ -189,6 +189,30 @@ Wallet *WalletManagerImpl::createWalletFromDevice(const std::string &path,
     return wallet;
 }
 
+Wallet *WalletManagerImpl::recoverMultisigWallet(const std::string &path, const std::string &password,
+                                                 Monero::NetworkType nettype, uint64_t restoreHeight,
+                                                 const std::string &multisigSeed, const std::string &mmsRecovery,
+                                                 uint64_t kdf_rounds,
+                                                 const std::string &subaddressLookahead)
+{
+    WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
+
+    if(restoreHeight > 0){
+        wallet->setRefreshFromBlockHeight(restoreHeight);
+    } else {
+        wallet->setRefreshFromBlockHeight(wallet->estimateBlockChainHeight());
+    }
+
+    auto lookahead = tools::parse_subaddress_lookahead(subaddressLookahead);
+    if (lookahead)
+    {
+        wallet->setSubaddressLookahead(lookahead->first, lookahead->second);
+    }
+
+    wallet->recoverMultisigWallet(path, password, multisigSeed, mmsRecovery);
+    return wallet;
+}
+
 bool WalletManagerImpl::closeWallet(Wallet *wallet, bool store)
 {
     WalletImpl * wallet_ = dynamic_cast<WalletImpl*>(wallet);

@@ -267,49 +267,42 @@ namespace net_utils
 				for(const auto& field : additional_params)
 					add_field(req_buff, field);
 
-				for (unsigned sends = 0; sends < 2; ++sends)
-				{
-					const std::size_t initial_size = req_buff.size();
-					const auto auth = m_auth.get_auth_field(method, uri);
-					if (auth)
-						add_field(req_buff, *auth);
+        const std::size_t initial_size = req_buff.size();
+        const auto auth = m_auth.get_auth_field(method, uri);
+        if (auth)
+          add_field(req_buff, *auth);
 
-					req_buff += "\r\n";
-					//--
+        req_buff += "\r\n";
+        //--
 
-					bool res = m_net_client.send(req_buff, timeout);
-					CHECK_AND_ASSERT_MES(res, false, "HTTP_CLIENT: Failed to SEND");
-					if(body.size())
-						res = m_net_client.send(body, timeout);
-					CHECK_AND_ASSERT_MES(res, false, "HTTP_CLIENT: Failed to SEND");
+        bool res = m_net_client.send(req_buff, timeout);
+        CHECK_AND_ASSERT_MES(res, false, "HTTP_CLIENT: Failed to SEND");
+        if(body.size())
+          res = m_net_client.send(body, timeout);
+        CHECK_AND_ASSERT_MES(res, false, "HTTP_CLIENT: Failed to SEND");
 
-					m_response_info.clear();
-					m_state = reciev_machine_state_header;
-					if (!handle_reciev(timeout))
-						return false;
-					if (m_response_info.m_response_code != 401)
-					{
-						if(ppresponse_info)
-							*ppresponse_info = std::addressof(m_response_info);
-						return true;
-					}
+        m_response_info.clear();
+        m_state = reciev_machine_state_header;
+        if (!handle_reciev(timeout)) {
+          LOG_ERROR("Receive failed");
+          return false;
+        }
 
-					switch (m_auth.handle_401(m_response_info))
-					{
-					case http_client_auth::kSuccess:
-						break;
-					case http_client_auth::kBadPassword:
-                                                sends = 2;
-						break;
-					default:
-					case http_client_auth::kParseFailure:
-						LOG_ERROR("Bad server response for authentication");
-						return false;
-					}
-					req_buff.resize(initial_size); // rollback for new auth generation
-				}
-				LOG_ERROR("Client has incorrect username/password for server requiring authentication");
-				return false;
+        if(ppresponse_info)
+          *ppresponse_info = std::addressof(m_response_info);
+
+        if (m_response_info.m_response_code == 401) {
+          LOG_ERROR("Client has incorrect username/password for server requiring authentication");
+          return false;
+        }
+
+        if (m_response_info.m_response_code == 500) {
+          LOG_ERROR("Internal server error");
+          return false;
+        }
+
+        LOG_ERROR("we got here");
+        return true;
 			}
 			//---------------------------------------------------------------------------
 			inline bool invoke_post(const boost::string_ref uri, const std::string& body, std::chrono::milliseconds timeout, const http_response_info** ppresponse_info = NULL, const fields_list& additional_params = fields_list()) override

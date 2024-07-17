@@ -141,6 +141,7 @@ struct PendingTransaction
     virtual uint64_t dust() const = 0;
     virtual uint64_t fee() const = 0;
     virtual std::vector<std::string> txid() const = 0;
+    virtual std::vector<std::string> prefixHashes() const = 0;
     /*!
      * \brief txCount - number of transactions current transaction will be splitted to
      * \return
@@ -155,6 +156,11 @@ struct PendingTransaction
     virtual PendingTransactionInfo * transaction(int index) const = 0;
     virtual void refresh() = 0;
     virtual std::vector<PendingTransactionInfo*> getAll() const = 0;
+    virtual std::vector<std::string> destinations(int index) const = 0;
+    virtual uint64_t signaturesNeeded() const = 0;
+    virtual bool enoughMultisigSignatures() const = 0;
+    virtual bool haveWeSigned() const = 0;
+    virtual bool canSign() const = 0;
 
     /**
      * @brief multisigSignData
@@ -179,6 +185,7 @@ struct PendingTransaction
      * @return vector of base58-encoded signers' public keys
      */
     virtual std::vector<std::string> signersKeys() const = 0;
+    virtual uint32_t saveToMMS() = 0;
 };
 
 /**
@@ -1227,6 +1234,15 @@ struct WalletManager
                                                            uint64_t kdf_rounds = 1,
                                                            const std::string &offset_passphrase = "",
                                                            const std::string &subaddressLookahead = "") = 0;
+
+    virtual Wallet * recoverMultisigWallet(const std::string &path,
+                                           const std::string &password,
+                                           NetworkType nettype,
+                                           uint64_t restoreHeight,
+                                           const std::string &multisigSeed,
+                                           const std::string &mmsRecovery,
+                                           uint64_t kdf_rounds,
+                                           const std::string &subaddress_lookahead) = 0;
 
    /*!
     * \deprecated this method creates a wallet WITHOUT a passphrase, use createWalletFromKeys(..., password, ...) instead
