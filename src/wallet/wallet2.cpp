@@ -11885,10 +11885,10 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_all(uint64_t below
 
 std::vector<wallet2::pending_tx> wallet2::create_transactions_single(const crypto::key_image &ki, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, uint32_t priority, const std::vector<uint8_t>& extra)
 {
-  return create_transactions_selected({ki}, address, is_subaddress, outputs, fake_outs_count, unlock_time, priority, extra);
+  return create_transactions_selected({ki}, address, is_subaddress, outputs, fake_outs_count, priority, extra);
 }
 
-std::vector<wallet2::pending_tx> wallet2::create_transactions_selected(const std::vector<crypto::key_image> &key_images, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, const uint64_t unlock_time, uint32_t priority, const std::vector<uint8_t>& extra)
+std::vector<wallet2::pending_tx> wallet2::create_transactions_selected(const std::vector<crypto::key_image> &key_images, const cryptonote::account_public_address &address, bool is_subaddress, const size_t outputs, const size_t fake_outs_count, uint32_t priority, const std::vector<uint8_t>& extra)
 {
   std::vector<size_t> unused_transfers_indices;
   std::vector<size_t> unused_dust_indices;
