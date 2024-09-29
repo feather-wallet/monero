@@ -81,6 +81,8 @@ if(DEVICE_TREZOR_READY)
             ${trezor_headers}
             ${trezor_private_headers})
 
+    message(INFO "LINKING AGAINST ${TREZOR_LIBUSB_LIBRARIES}")
+
     target_link_libraries(device_trezor
             PUBLIC
             device
