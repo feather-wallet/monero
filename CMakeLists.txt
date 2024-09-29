@@ -46,6 +46,8 @@ endif()
 cmake_minimum_required(VERSION 3.5)
 message(STATUS "CMake version ${CMAKE_VERSION}")
 
+cmake_policy(SET CMP0074 NEW)
+
 project(monero)
 
 option (USE_CCACHE "Use ccache if a usable instance is found" ON)
