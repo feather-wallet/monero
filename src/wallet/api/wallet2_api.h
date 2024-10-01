@@ -39,6 +39,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <cstdint>
+#include <optional>
 
 namespace tools {
     class wallet2;
@@ -57,19 +58,6 @@ enum NetworkType : uint8_t {
         bool isAddressLocal(const std::string &hostaddr);
         void onStartup();
     }
-
-    template<typename T>
-    class optional {
-      public:
-        optional(): set(false) {}
-        optional(const T &t): t(t), set(true) {}
-        const T &operator*() const { return t; }
-        T &operator*() { return t; }
-        operator bool() const { return set; }
-      private:
-        T t;
-        bool set;
-    };
 
 /*
  * @brief Transaction construction data
@@ -302,16 +290,16 @@ struct WalletListener
     /**
      * @brief called by device when PIN is needed
      */
-    virtual optional<std::string> onDevicePinRequest() {
+    virtual std::optional<std::string> onDevicePinRequest() {
         throw std::runtime_error("Not supported");
     }
 
     /**
      * @brief called by device when passphrase entry is needed
      */
-    virtual optional<std::string> onDevicePassphraseRequest(bool & on_device) {
+    virtual std::optional<std::string> onDevicePassphraseRequest(bool & on_device) {
         on_device = true;
-        return optional<std::string>();
+        return std::optional<std::string>();
     }
 
     /**
@@ -761,7 +749,7 @@ struct Wallet
      */
 
     virtual PendingTransaction * createTransactionMultDest(const std::vector<std::string> &dst_addr, const std::string &payment_id,
-                                                   optional<std::vector<uint64_t>> amount, uint32_t mixin_count,
+                                                   std::optional<std::vector<uint64_t>> amount, uint32_t mixin_count,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low,
                                                    uint32_t subaddr_account = 0,
                                                    std::set<uint32_t> subaddr_indices = {}, const std::set<std::string> &preferred_inputs = {},
@@ -781,7 +769,7 @@ struct Wallet
      */
 
     virtual PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
-                                                   optional<uint64_t> amount, uint32_t mixin_count,
+                                                   std::optional<uint64_t> amount, uint32_t mixin_count,
                                                    PendingTransaction::Priority = PendingTransaction::Priority_Low,
                                                    uint32_t subaddr_account = 0,
                                                    std::set<uint32_t> subaddr_indices = {},
@@ -921,7 +909,7 @@ struct Wallet
      * \param background_cache_password - custom password to encrypt background cache, only needed for custom password background sync type
      * \return                          - true on success
      */
-    virtual bool setupBackgroundSync(const BackgroundSyncType background_sync_type, const std::string &wallet_password, const optional<std::string> &background_cache_password) = 0;
+    virtual bool setupBackgroundSync(const BackgroundSyncType background_sync_type, const std::string &wallet_password, const std::optional<std::string> &background_cache_password) = 0;
 
     /*!
      * \brief getBackgroundSyncType     - get mode the wallet background syncs in
