@@ -160,14 +160,14 @@ public:
     PendingTransaction*  restoreMultisigTransaction(const std::string& signData) override;
 
     PendingTransaction * createTransactionMultDest(const std::vector<std::string> &dst_addr, const std::string &payment_id,
-                                        optional<std::vector<uint64_t>> amount, uint32_t mixin_count,
+                                        std::optional<std::vector<uint64_t>> amount, uint32_t mixin_count,
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {},
                                         const std::set<std::string> &preferred_inputs = {},
                                         bool subtractFeeFromAmount = false) override;
     PendingTransaction * createTransaction(const std::string &dst_addr, const std::string &payment_id,
-                                        optional<uint64_t> amount, uint32_t mixin_count,
+                                        std::optional<uint64_t> amount, uint32_t mixin_count,
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {},
@@ -198,7 +198,7 @@ public:
     bool importOutputsFromStr(const std::string &outputs) override;
     bool scanTransactions(const std::vector<std::string> &txids) override;
 
-    bool setupBackgroundSync(const BackgroundSyncType background_sync_type, const std::string &wallet_password, const optional<std::string> &background_cache_password = optional<std::string>()) override;
+    bool setupBackgroundSync(const BackgroundSyncType background_sync_type, const std::string &wallet_password, const std::optional<std::string> &background_cache_password = std::optional<std::string>()) override;
     BackgroundSyncType getBackgroundSyncType() const override;
     bool startBackgroundSync() override;
     bool stopBackgroundSync(const std::string &wallet_password) override;
