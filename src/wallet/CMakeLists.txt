@@ -66,38 +66,4 @@ target_link_libraries(wallet
   PRIVATE
     ${EXTRA_LIBRARIES})
 
-# build and install libwallet_merged only if we building for GUI
-if (BUILD_GUI_DEPS)
-    set(libs_to_merge
-            wallet_api
-            wallet
-            rpc_base
-            multisig
-            cryptonote_core
-            cryptonote_basic
-            mnemonics
-            common
-            cncrypto
-            device
-            hardforks
-            ringct
-            ringct_basic
-            checkpoints
-            version
-            net
-            device_trezor)
-
-    foreach(lib ${libs_to_merge})
-        list(APPEND objlibs $<TARGET_OBJECTS:obj_${lib}>) # matches naming convention in src/CMakeLists.txt
-    endforeach()
-    add_library(wallet_merged STATIC ${objlibs})
-    if(IOS)
-        set(lib_folder lib-${ARCH})
-    else()
-        set(lib_folder lib)
-    endif()
-    install(TARGETS wallet_merged
-        ARCHIVE DESTINATION ${lib_folder})
-endif()
-
 add_subdirectory(api)
