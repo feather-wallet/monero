@@ -247,7 +247,7 @@ struct WalletListener
      * @param txId          - transaction id
      * @param amount        - amount
      */
-    virtual void moneyReceived(const std::string &txId, uint64_t amount) = 0;
+    virtual void moneyReceived(const std::string &txId, uint64_t amount, bool coinbase) = 0;
     
    /**
     * @brief unconfirmedMoneyReceived - called when payment arrived in tx pool

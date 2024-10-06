@@ -165,7 +165,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
                      << ", burnt: " << print_money(burnt)
                      << ", raw_output_value: " << print_money(amount)
                      << ", idx: " << subaddr_index);
-            m_listener->moneyReceived(tx_hash, amount - burnt);
+            m_listener->moneyReceived(tx_hash, amount - burnt, cryptonote::is_coinbase(tx));
             m_listener->updated();
     }
 
@@ -212,7 +212,7 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
     {
       if (m_listener) {
         std::string tx_hash =  epee::string_tools::pod_to_hex(txid);
-        m_listener->moneyReceived(tx_hash, amount);
+        m_listener->moneyReceived(tx_hash, amount, false);
       }
     }
 
