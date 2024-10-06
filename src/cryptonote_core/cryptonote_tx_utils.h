@@ -83,7 +83,7 @@ namespace cryptonote
     tx_destination_entry(uint64_t a, const account_public_address &ad, bool is_subaddress) : amount(a), addr(ad), is_subaddress(is_subaddress), is_integrated(false) { }
     tx_destination_entry(const std::string &o, uint64_t a, const account_public_address &ad, bool is_subaddress) : original(o), amount(a), addr(ad), is_subaddress(is_subaddress), is_integrated(false) { }
 
-    std::string address(network_type nettype, const crypto::hash &payment_id) const
+    std::string address(network_type nettype, const crypto::hash &payment_id, bool force_payment_id = false) const
     {
       if (!original.empty())
       {
@@ -92,6 +92,10 @@ namespace cryptonote
 
       if (is_integrated)
       {
+        return get_account_integrated_address_as_str(nettype, addr, reinterpret_cast<const crypto::hash8 &>(payment_id));
+      }
+
+      if (force_payment_id && payment_id != crypto::null_hash) {
         return get_account_integrated_address_as_str(nettype, addr, reinterpret_cast<const crypto::hash8 &>(payment_id));
       }
 
