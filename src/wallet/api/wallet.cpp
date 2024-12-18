@@ -246,10 +246,10 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
       }
     }
 
-    virtual void on_device_error(const std::string &message)
+    virtual void on_device_error(const std::string &message, unsigned int error_code)
     {
         if (m_listener) {
-            m_listener->onDeviceError(message);
+            m_listener->onDeviceError(message, error_code);
         }
     }
 

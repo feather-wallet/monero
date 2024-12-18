@@ -153,7 +153,7 @@ private:
     // Device callbacks
     virtual void on_device_button_request(uint64_t code) {}
     virtual void on_device_button_pressed() {}
-    virtual void on_device_error(const std::string &msg) {}
+    virtual void on_device_error(const std::string &msg, unsigned int errorCode) {}
     virtual boost::optional<epee::wipeable_string> on_device_pin_request() { return boost::none; }
     virtual boost::optional<epee::wipeable_string> on_device_passphrase_request(bool & on_device) { on_device = true; return boost::none; }
     virtual void on_device_progress(const hw::device_progress& event) {};
@@ -168,7 +168,7 @@ private:
     wallet_device_callback(wallet2 * wallet): wallet(wallet) {};
     void on_button_request(uint64_t code=0) override;
     void on_button_pressed() override;
-    void on_error(const std::string &message) override;
+    void on_error(const std::string &message, unsigned int error_code) override;
     boost::optional<epee::wipeable_string> on_pin_request() override;
     boost::optional<epee::wipeable_string> on_passphrase_request(bool & on_device) override;
     void on_progress(const hw::device_progress& event) override;
@@ -1902,7 +1902,7 @@ private:
     wallet_device_callback * get_device_callback();
     void on_device_button_request(uint64_t code);
     void on_device_button_pressed();
-    void on_device_error(const std::string &message);
+    void on_device_error(const std::string &message, unsigned int errorCode);
     boost::optional<epee::wipeable_string> on_device_pin_request();
     boost::optional<epee::wipeable_string> on_device_passphrase_request(bool & on_device);
     void on_device_progress(const hw::device_progress& event);

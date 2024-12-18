@@ -1173,10 +1173,10 @@ void wallet_device_callback::on_button_pressed()
     wallet->on_device_button_pressed();
 }
 
-void wallet_device_callback::on_error(const std::string &message)
+void wallet_device_callback::on_error(const std::string &message, unsigned int error_code)
 {
   if (wallet)
-    wallet->on_device_error(message);
+    wallet->on_device_error(message, error_code);
 }
 
 boost::optional<epee::wipeable_string> wallet_device_callback::on_pin_request()
@@ -1537,7 +1537,7 @@ bool wallet2::reconnect_device()
 
   r = hwdev.connect();
   if (!r){
-    m_callback->on_device_error("Unable to reconnect to device");
+    m_callback->on_device_error("Unable to reconnect to device", 0);
     MERROR("Could not connect to the device");
     return false;
   }
@@ -15755,10 +15755,10 @@ void wallet2::on_device_button_pressed()
     m_callback->on_device_button_pressed();
 }
 //----------------------------------------------------------------------------------------------------
-void wallet2::on_device_error(const std::string &message)
+void wallet2::on_device_error(const std::string &message, unsigned int error_code)
 {
   if (nullptr != m_callback)
-    m_callback->on_device_error(message);
+    m_callback->on_device_error(message, error_code);
 }
 //----------------------------------------------------------------------------------------------------
 boost::optional<epee::wipeable_string> wallet2::on_device_pin_request()
