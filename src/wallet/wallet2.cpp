@@ -1599,10 +1599,29 @@ void wallet2::add_subaddress_account(const std::string& label)
 //----------------------------------------------------------------------------------------------------
 bool wallet2::get_subaddress_used(const cryptonote::subaddress_index& index)
 {
- return std::find_if(m_transfers.begin(), m_transfers.end(),
-   [this, index](const transfer_details &td) {
-     return td.m_subaddr_index == index;
-   }) != m_transfers.end();
+  bool found_in_transfers = std::find_if(m_transfers.begin(), m_transfers.end(),
+                                         [this, index](const transfer_details &td) {
+                                             return td.m_subaddr_index == index;
+                                         }) != m_transfers.end();
+  if (found_in_transfers) {
+      return true;
+  }
+
+  for (const auto& unconfirmed_payment : m_unconfirmed_payments) {
+    if (unconfirmed_payment.second.m_pd.m_subaddr_index == index) {
+      return true;
+    }
+  }
+
+  for (const auto& unconfirmed_tx : m_unconfirmed_txs) {
+    for (const auto &dest : unconfirmed_tx.second.m_dests) {
+      if (dest.addr == get_subaddress(index)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::add_subaddress(uint32_t index_major, const std::string& label)
