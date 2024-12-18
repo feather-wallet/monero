@@ -477,6 +477,14 @@ namespace hw {
       MDEBUG("Device "<< this->id << " exchange: sw: " << this->sw << " expected: " << ok);
       ASSERT_X(sw != SW_CLIENT_NOT_SUPPORTED, "Monero Ledger App doesn't support current monero version. Try to update the Monero Ledger App, at least " << MINIMAL_APP_VERSION_MAJOR<< "." << MINIMAL_APP_VERSION_MINOR << "." << MINIMAL_APP_VERSION_MICRO << " is required.");
       ASSERT_X(sw != SW_PROTOCOL_NOT_SUPPORTED, "Make sure no other program is communicating with the Ledger.");
+      if (sw == SW_UNKNOWN_PROBABLY_LOCKED) {
+         hw_device.disconnected = true;
+         if (m_callback) {
+           m_callback->on_error("Make sure the device is unlocked", sw);
+         }
+         throw hw::error::device_disconnected("Device is locked");
+      }
+
       ASSERT_SW(this->sw,ok,mask);
 
       return this->sw;

@@ -286,7 +286,7 @@ struct WalletListener
     /**
      * @brief called by device if an error occurred
      */
-    virtual void onDeviceError(const std::string &msg) {};
+    virtual void onDeviceError(const std::string &msg, unsigned int errorCode) {};
 
     /**
      * @brief called by device when PIN is needed
