@@ -85,6 +85,7 @@ namespace hw {
     #define SW_INS_NOT_SUPPORTED                    0x6d00
     #define SW_PROTOCOL_NOT_SUPPORTED               0x6e00
     #define SW_UNKNOWN                              0x6f00
+    #define SW_UNKNOWN_PROBABLY_LOCKED              0x5515
 
     namespace {
         bool apdu_verbose =true;
