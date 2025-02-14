@@ -933,7 +933,7 @@ std::string WalletImpl::integratedAddress(const std::string &payment_id) const
 std::string WalletImpl::secretViewKey() const
 {
     bool hw_view_key = m_wallet->get_device_type() == hw::device::device_type::LEDGER && m_wallet->m_hw_view_key != crypto::null_skey;
-    return epee::string_tools::pod_to_hex(hw_view_key ? m_wallet->m_hw_view_key : unwrap(unwrap(m_wallet->get_account().get_keys().m_view_secret_key)));
+    return epee::string_tools::pod_to_hex(hw_view_key ? m_wallet->m_hw_view_key : m_wallet->get_account().get_keys().m_view_secret_key);
 }
 
 std::string WalletImpl::publicViewKey() const
@@ -943,7 +943,7 @@ std::string WalletImpl::publicViewKey() const
 
 std::string WalletImpl::secretSpendKey() const
 {
-    return epee::string_tools::pod_to_hex(unwrap(unwrap(m_wallet->get_account().get_keys().m_spend_secret_key)));
+    return epee::string_tools::pod_to_hex(m_wallet->get_account().get_keys().m_spend_secret_key);
 }
 
 std::string WalletImpl::publicSpendKey() const
@@ -2171,9 +2171,9 @@ std::string WalletImpl::getTxKey(const std::string &txid_str) const
         {
             clearStatus();
             std::ostringstream oss;
-            oss << epee::string_tools::pod_to_hex(unwrap(unwrap(tx_key)));
+            oss << epee::string_tools::pod_to_hex(tx_key);
             for (size_t i = 0; i < additional_tx_keys.size(); ++i)
-                oss << epee::string_tools::pod_to_hex(unwrap(unwrap(additional_tx_keys[i])));
+                oss << epee::string_tools::pod_to_hex(additional_tx_keys[i]);
             return oss.str();
         }
         else
