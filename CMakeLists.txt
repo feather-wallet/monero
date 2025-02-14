@@ -1115,8 +1115,6 @@ elseif(Boost_FOUND)
 endif()
 
 add_definitions(-DBOOST_ASIO_ENABLE_SEQUENTIAL_STRAND_ALLOCATION)
-add_definitions(-DBOOST_NO_AUTO_PTR)
-add_definitions(-DBOOST_UUID_DISABLE_ALIGNMENT) # This restores UUID's std::has_unique_object_representations property
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 if(MINGW)
