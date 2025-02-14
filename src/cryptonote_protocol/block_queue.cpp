@@ -40,6 +40,15 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "cn.block_queue"
 
+namespace std {
+  static_assert(sizeof(size_t) <= sizeof(boost::uuids::uuid), "boost::uuids::uuid too small");
+  template<> struct hash<boost::uuids::uuid> {
+    std::size_t operator()(const boost::uuids::uuid &_v) const {
+      return reinterpret_cast<const std::size_t &>(_v);
+    }
+  };
+}
+
 namespace cryptonote
 {
 
@@ -473,7 +482,7 @@ bool block_queue::has_spans(const boost::uuids::uuid &connection_id) const
 float block_queue::get_speed(const boost::uuids::uuid &connection_id) const
 {
   boost::unique_lock<boost::recursive_mutex> lock(mutex);
-  std::unordered_map<boost::uuids::uuid, float, boost::hash<boost::uuids::uuid>> speeds;
+  std::unordered_map<boost::uuids::uuid, float> speeds;
   for (const auto &span: blocks)
   {
     if (span.blocks.empty())
@@ -481,7 +490,7 @@ float block_queue::get_speed(const boost::uuids::uuid &connection_id) const
     // note that the average below does not average over the whole set, but over the
     // previous pseudo average and the latest rate: this gives much more importance
     // to the latest measurements, which is fine here
-    const auto i = speeds.find(span.connection_id);
+    std::unordered_map<boost::uuids::uuid, float>::iterator i = speeds.find(span.connection_id);
     if (i == speeds.end())
       speeds.insert(std::make_pair(span.connection_id, span.rate));
     else
