@@ -76,6 +76,10 @@ public:
                             const std::string &address_string, 
                             const std::string &viewkey_string,
                             const std::string &spendkey_string = "");
+    bool recoverDeterministicWalletFromSpendKey(const std::string &path,
+                                                const std::string &password,
+                                                const std::string &language,
+                                                const std::string &spendkey_string);
     bool recoverFromDevice(const std::string &path,
                            const std::string &password,
                            const std::string &device_name);
@@ -162,6 +166,10 @@ public:
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {}) override;
+
+    PendingTransaction * createTransactionSingle(const std::string &key_image, const std::string &dst_addr,
+            size_t outputs = 1, PendingTransaction::Priority priority = PendingTransaction::Priority_Low) override;
+
     virtual PendingTransaction * createSweepUnmixableTransaction() override;
     bool submitTransaction(const std::string &fileName) override;
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename) override;
