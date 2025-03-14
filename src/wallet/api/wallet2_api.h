@@ -871,6 +871,18 @@ struct Wallet
                                                    std::set<uint32_t> subaddr_indices = {}) = 0;
 
     /*!
+     * \brief createTransactionSingle creates transaction with single input
+     * \param key_image               key image as string
+     * \param dst_addr                destination address as string
+     * \param priority
+     * \return                        PendingTransaction object. caller is responsible to check PendingTransaction::status()
+     *                                after object returned
+     */
+
+    virtual PendingTransaction * createTransactionSingle(const std::string &key_image, const std::string &dst_addr,
+            size_t outputs = 1, PendingTransaction::Priority = PendingTransaction::Priority_Low) = 0;
+
+    /*!
      * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.
      * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
      *                          after object returned
@@ -1036,7 +1048,8 @@ struct Wallet
     /*
      * \brief signMessage - sign a message with the spend private key
      * \param message - the message to sign (arbitrary byte data)
-     * \return the signature
+     * \param address - the address to make the signature with, defaults to primary address (optional)
+     * \return the signature, empty string if the address is invalid or does not belong to the wallet
      */
     virtual std::string signMessage(const std::string &message, const std::string &address = "") = 0;
     /*!
@@ -1246,6 +1259,25 @@ struct WalletManager
     {
         return createWalletFromKeys(path, password, language, testnet ? TESTNET : MAINNET, restoreHeight, addressString, viewKeyString, spendKeyString);
     }
+
+    /*!
+     * \brief  recover deterministic wallet from spend key.
+     * \param  path           Name of wallet file to be created
+     * \param  password       Password of wallet file
+     * \param  language       language
+     * \param  nettype        Network type
+     * \param  restoreHeight  restore from start height
+     * \param  spendKeyString spend key
+     * \param  kdf_rounds     Number of rounds for key derivation function
+     * \return                Wallet instance (Wallet::status() needs to be called to check if recovered successfully)
+     */
+    virtual Wallet * createDeterministicWalletFromSpendKey(const std::string &path,
+                                                           const std::string &password,
+                                                           const std::string &language,
+                                                           NetworkType nettype,
+                                                           uint64_t restoreHeight,
+                                                           const std::string &spendKeyString,
+                                                           uint64_t kdf_rounds = 1) = 0;
 
    /*!
     * \deprecated this method creates a wallet WITHOUT a passphrase, use createWalletFromKeys(..., password, ...) instead
