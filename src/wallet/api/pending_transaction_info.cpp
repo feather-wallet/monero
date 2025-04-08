@@ -33,7 +33,7 @@ namespace Monero {
 
     std::string PendingTransactionInfoImpl::txKey() const
     {
-        return epee::string_tools::pod_to_hex(m_ptx.tx_key);
+        return epee::string_tools::pod_to_hex(unwrap(unwrap(m_ptx.tx_key)));
     }
 
     TransactionConstructionInfo * PendingTransactionInfoImpl::constructionData() const {
