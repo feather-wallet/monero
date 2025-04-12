@@ -150,24 +150,10 @@ namespace string_tools
 		static std::string module_folder;
 		return module_folder;
 	}
-	
-#ifdef _WIN32
-  std::string get_current_module_path()
-  {
-    char pname [5000] = {0};
-    GetModuleFileNameA( NULL, pname, sizeof(pname));
-    pname[sizeof(pname)-1] = 0; //be happy ;)
-    return pname;
-  }
-#endif
 
   void set_module_name_and_folder(const std::string& path_to_process_)
   {
     boost::filesystem::path path_to_process = path_to_process_;
-
-#ifdef _WIN32
-    path_to_process = get_current_module_path();
-#endif 
 
     get_current_module_name() = path_to_process.filename().string();
     get_current_module_folder() = path_to_process.parent_path().string();
