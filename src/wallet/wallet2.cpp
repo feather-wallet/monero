@@ -2873,6 +2873,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
         utd.m_subaddr_account = *subaddr_account;
         utd.m_subaddr_indices = subaddr_indices;
         utd.m_timestamp = ts;
+        utd.m_sent_time = ts; // set to time of discovery to prevent marking as failed
         utd.m_state = wallet2::unconfirmed_transfer_details::pending;
         for (const auto &in: tx.vin)
         {
