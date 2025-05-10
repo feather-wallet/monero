@@ -2894,7 +2894,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       auto i = m_unconfirmed_txs.find(txid);
       if (i == m_unconfirmed_txs.end()) {
         // We don't have it yet, perhaps it was relayed using a tx pusher
-        unconfirmed_transfer_details& utd = m_unconfirmed_txs[cryptonote::get_transaction_hash(tx)];
+        unconfirmed_transfer_details& utd = m_unconfirmed_txs[txid];
         utd.m_amount_in = tx_money_spent_in_ins;
         utd.m_amount_out = tx_money_spent_in_ins - tx.rct_signatures.txnFee;
         utd.m_change = self_received;
