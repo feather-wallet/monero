@@ -66,7 +66,7 @@ static inline const char *get_rpc_server_error_message(int64_t code)
     case CORE_RPC_ERROR_CODE_CORE_BUSY: return "Core is busy";
     case CORE_RPC_ERROR_CODE_WRONG_BLOCKBLOB_SIZE: return "Wrong block blob size";
     case CORE_RPC_ERROR_CODE_UNSUPPORTED_RPC: return "Unsupported RPC";
-    case CORE_RPC_ERROR_CODE_MINING_TO_SUBADDRESS: return "Mining to subaddress is not supported";
+    case CORE_RPC_ERROR_CODE_MINING_TO_SUBADDRESS: return "... to subaddress is not supported";
     case CORE_RPC_ERROR_CODE_REGTEST_REQUIRED: return "Regtest mode required";
     case CORE_RPC_ERROR_CODE_PAYMENT_REQUIRED: return "Payment required";
     case CORE_RPC_ERROR_CODE_INVALID_CLIENT: return "Invalid client";

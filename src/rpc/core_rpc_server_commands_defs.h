@@ -77,7 +77,6 @@ namespace cryptonote
   //-----------------------------------------------
 #define CORE_RPC_STATUS_OK   "OK"
 #define CORE_RPC_STATUS_BUSY   "BUSY"
-#define CORE_RPC_STATUS_NOT_MINING "NOT MINING"
 #define CORE_RPC_STATUS_PAYMENT_REQUIRED "PAYMENT REQUIRED"
 
 // When making *any* change here, bump minor
@@ -662,34 +661,6 @@ namespace cryptonote
     typedef epee::misc_utils::struct_init<response_t> response;
   };
   //-----------------------------------------------
-  struct COMMAND_RPC_START_MINING
-  {
-    struct request_t: public rpc_request_base
-    {
-      std::string miner_address;
-      uint64_t    threads_count;
-      bool        do_background_mining;
-      bool        ignore_battery;
-
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE_PARENT(rpc_request_base)
-        KV_SERIALIZE(miner_address)
-        KV_SERIALIZE(threads_count)
-        KV_SERIALIZE(do_background_mining)        
-        KV_SERIALIZE(ignore_battery)        
-      END_KV_SERIALIZE_MAP()
-    };
-    typedef epee::misc_utils::struct_init<request_t> request;
-
-    struct response_t: public rpc_response_base
-    {
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE_PARENT(rpc_response_base)
-      END_KV_SERIALIZE_MAP()
-    };
-    typedef epee::misc_utils::struct_init<response_t> response;
-  };
-  //-----------------------------------------------
   struct COMMAND_RPC_GET_INFO
   {
     struct request_t: public rpc_access_request_base
@@ -816,79 +787,6 @@ namespace cryptonote
         KV_SERIALIZE(total_bytes_in)
         KV_SERIALIZE(total_packets_out)
         KV_SERIALIZE(total_bytes_out)
-      END_KV_SERIALIZE_MAP()
-    };
-    typedef epee::misc_utils::struct_init<response_t> response;
-  };
-
-  //-----------------------------------------------
-  struct COMMAND_RPC_STOP_MINING
-  {
-    struct request_t: public rpc_request_base
-    {
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE_PARENT(rpc_request_base)
-      END_KV_SERIALIZE_MAP()
-    };
-    typedef epee::misc_utils::struct_init<request_t> request;
-
-
-    struct response_t: public rpc_response_base
-    {
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE_PARENT(rpc_response_base)
-      END_KV_SERIALIZE_MAP()
-    };
-    typedef epee::misc_utils::struct_init<response_t> response;
-  };
-
-  //-----------------------------------------------
-  struct COMMAND_RPC_MINING_STATUS
-  {
-    struct request_t: public rpc_request_base
-    {
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE_PARENT(rpc_request_base)
-      END_KV_SERIALIZE_MAP()
-    };
-    typedef epee::misc_utils::struct_init<request_t> request;
-
-
-    struct response_t: public rpc_response_base
-    {
-      bool active;
-      uint64_t speed;
-      uint32_t threads_count;
-      std::string address;
-      std::string pow_algorithm;
-      bool is_background_mining_enabled;
-      uint8_t bg_idle_threshold;
-      uint8_t bg_min_idle_seconds;
-      bool bg_ignore_battery;
-      uint8_t bg_target;
-      uint32_t block_target;
-      uint64_t block_reward;
-      uint64_t difficulty;
-      std::string wide_difficulty;
-      uint64_t difficulty_top64;
-
-      BEGIN_KV_SERIALIZE_MAP()
-        KV_SERIALIZE_PARENT(rpc_response_base)
-        KV_SERIALIZE(active)
-        KV_SERIALIZE(speed)
-        KV_SERIALIZE(threads_count)
-        KV_SERIALIZE(address)
-        KV_SERIALIZE(pow_algorithm)
-        KV_SERIALIZE(is_background_mining_enabled)
-        KV_SERIALIZE(bg_idle_threshold)
-        KV_SERIALIZE(bg_min_idle_seconds)
-        KV_SERIALIZE(bg_ignore_battery)
-        KV_SERIALIZE(bg_target)
-        KV_SERIALIZE(block_target)
-        KV_SERIALIZE(block_reward)
-        KV_SERIALIZE(difficulty)
-        KV_SERIALIZE(wide_difficulty)
-        KV_SERIALIZE(difficulty_top64)
       END_KV_SERIALIZE_MAP()
     };
     typedef epee::misc_utils::struct_init<response_t> response;
