@@ -411,7 +411,7 @@ namespace hw {
       this->length_send = set_command_header_noopt(ins, p1);
       if (ins == INS_GET_KEY && p1 == IO_SECRET_KEY) {
         // export view key user input
-        this->exchange_wait_on_input();
+        CHECK_AND_ASSERT_THROW_MES(this->exchange_wait_on_input() == 0, "Key export rejected on device.");
       } else {
         this->exchange();
       }
