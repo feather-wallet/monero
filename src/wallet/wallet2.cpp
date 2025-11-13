@@ -6604,7 +6604,7 @@ std::string wallet2::printAdditionalTxKeys()
     for (std::pair<crypto::hash, std::vector<crypto::secret_key>> el : m_additional_tx_keys) {
         str += "Txid: " + string_tools::pod_to_hex(el.first) + " (" + std::to_string(el.second.size()) + ")\n";
         for (auto em : el.second) {
-            str += "  " + string_tools::pod_to_hex(em) + "\n";
+            str += "  " + string_tools::pod_to_hex(unwrap(unwrap(em))) + "\n";
         }
     }
     return str;
@@ -6643,7 +6643,7 @@ std::string wallet2::printTxKeys()
 {
     std::string str;
     for (std::pair<crypto::hash, crypto::secret_key> el : m_tx_keys) {
-        str += string_tools::pod_to_hex(el.first) + " : " + string_tools::pod_to_hex(el.second) + "\n";
+        str += string_tools::pod_to_hex(el.first) + " : " + string_tools::pod_to_hex(unwrap(unwrap(el.second))) + "\n";
     }
     return str;
 }
