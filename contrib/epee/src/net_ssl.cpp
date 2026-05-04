@@ -36,6 +36,7 @@
 #include <boost/asio/strand.hpp>
 #include <condition_variable>
 #include <boost/lambda/lambda.hpp>
+#include <boost/asio/bind_executor.hpp>
 #include <openssl/ssl.h>
 #include <openssl/pem.h>
 #include "misc_log_ex.h"
@@ -614,7 +615,7 @@ bool ssl_options_t::handshake(
         socket.async_handshake(
           type,
           boost::asio::buffer(buffer),
-          strand.wrap(on_handshake)
+          boost::asio::bind_executor(strand, on_handshake)
         );
       }
     );
