@@ -48,6 +48,7 @@
 using namespace epee;
 
 #include "cryptonote_config.h"
+#include "hardforks/hardforks.h"
 #include "cryptonote_core/tx_sanity_check.h"
 #include "wallet_rpc_helpers.h"
 #include "wallet2.h"
