@@ -646,6 +646,7 @@ namespace hw {
         CHECK_AND_ASSERT_THROW_MES(!is_fake_view_key(view_secret_key), "Key export rejected on device.");
 
         this->viewkey = view_secret_key;
+        memmove(vkey.data, this->viewkey.data, 32);
         this->has_view_key = true;
 
         #ifdef DEBUG_HWDEVICE
