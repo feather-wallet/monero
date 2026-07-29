@@ -109,7 +109,6 @@ enum IUE1 { A1, B1, C1 };
 enum IUE2 { A2 = -1, B2, C2 };
 TEST_MAKE_UNSIGNED_ENUM(IUE2)
 
->>>>>>> c93c4fc82 (Misc clang 21 fixes)
 struct Struct
 {
   int32_t a;
