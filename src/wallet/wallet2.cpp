@@ -2909,6 +2909,10 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
       THROW_WALLET_EXCEPTION_IF(i == m_unconfirmed_txs.end(), error::wallet_internal_error,
         "unconfirmed tx wasn't found: " + string_tools::pod_to_hex(txid));
       i->second.m_amount_out = get_outgoing_amount(tx, tx_money_spent_in_ins);
+
+      if (0 != m_callback) {
+        m_callback->on_updated();
+      }
     }
   }
 

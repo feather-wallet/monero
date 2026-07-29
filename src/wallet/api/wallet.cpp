@@ -175,6 +175,13 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
         return m_listener;
     }
 
+    virtual void on_updated()
+    {
+        if (m_listener) {
+            m_listener->updated();
+        }
+    }
+
     virtual void on_new_block(uint64_t height, const cryptonote::block& block)
     {
         // Don't flood the GUI with signals. On fast refresh - send signal every 1000th block
