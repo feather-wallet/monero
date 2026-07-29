@@ -7905,10 +7905,16 @@ void wallet2::add_unconfirmed_tx(const crypto::hash &txid, const cryptonote::tra
   unconfirmed_transfer_details& utd = m_unconfirmed_txs[txid];
   utd.m_amount_in = amount_in;
   utd.m_amount_out = 0;
+  uint64_t self_received = change_amount;
   for (const auto &d: dests)
+  {
     utd.m_amount_out += d.amount;
+    const boost::optional<cryptonote::subaddress_index> index = get_subaddress_index(d.addr);
+    if (index && index->major == subaddr_account)
+      self_received += d.amount;
+  }
   utd.m_amount_out += change_amount; // dests does not contain change
-  utd.m_change = change_amount;
+  utd.m_change = utd.m_amount_out == self_received ? self_received : change_amount;
   utd.m_sent_time = time(NULL);
   utd.m_tx = (const cryptonote::transaction_prefix&)tx;
   utd.m_dests = dests;
